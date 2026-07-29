@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Search, AlertTriangle, Package, DollarSign, TrendingUp, Bell, Zap, Clock } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { 
+  Search, AlertTriangle, Package, DollarSign, TrendingUp, Bell, Zap, Clock, 
+  ArrowRightLeft, PlusCircle, SlidersHorizontal, RefreshCw 
+} from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { 
+  getInventorySummary, executeWarehouseTransfer, receiveInventory, adjustInventory 
+} from '@/lib/inventoryService';
 import { AdminPageHeader } from '@/components/admin/AdminLayout';
 import { DataTable, StatCard } from '@/components/admin/AdminComponents';
 import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
-import { Select } from '@/components/ui/Input';
 import type { Product, Inventory, Branch, Warehouse, StockAlert, InventoryValuation, InventoryAgingEntry } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -16,15 +21,49 @@ export default function AdminInventory() {
   const [valuations, setValuations] = useState<InventoryValuation[]>([]);
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const [aging, setAging] = useState<InventoryAgingEntry[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<InventoryTab>('stock');
   const [selectedAlert, setSelectedAlert] = useState<StockAlert | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const [{ data: inv }, { data: prods }, { data: brs }, { data: whs }, { data: val }, { data: alts }, { data: agingData }] = await Promise.all([
-        supabase.from('inventory').select('*'),
+  // Modal States
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [receiveModalOpen, setReceiveModalOpen] = useState(false);
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Transfer Form State
+  const [transferForm, setTransferForm] = useState({
+    productId: '',
+    fromWarehouseId: '',
+    toBranchId: '',
+    quantity: 1,
+  });
+
+  // Receive Form State
+  const [receiveForm, setReceiveForm] = useState({
+    productId: '',
+    locationId: '',
+    isWarehouse: true,
+    quantity: 1,
+  });
+
+  // Adjust Form State
+  const [adjustForm, setAdjustForm] = useState({
+    productId: '',
+    locationId: '',
+    isWarehouse: true,
+    quantityDelta: 0,
+    reason: 'correction',
+  });
+
+  const fetchInventoryData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [inv, { data: prods }, { data: brs }, { data: whs }, { data: val }, { data: alts }, { data: agingData }] = await Promise.all([
+        getInventorySummary(),
         supabase.from('products').select('*'),
         supabase.from('branches').select('*'),
         supabase.from('warehouses').select('*'),
@@ -32,18 +71,38 @@ export default function AdminInventory() {
         supabase.from('stock_alerts').select('*').eq('is_resolved', false).order('created_at', { ascending: false }).limit(50),
         supabase.from('v_inventory_aging').select('*').limit(200),
       ]);
+
       const pMap = Object.fromEntries((prods ?? []).map((p) => [p.id, p]));
       const bMap = Object.fromEntries((brs ?? []).map((b) => [b.id, b]));
       const wMap = Object.fromEntries((whs ?? []).map((w) => [w.id, w]));
-      setRows((inv ?? []).map((i) => ({ ...(i as Inventory), product: pMap[(i as Inventory).product_id], branch: bMap[(i as Inventory).branch_id ?? ''], warehouse: wMap[(i as Inventory).warehouse_id ?? ''] })));
+
+      setBranches(brs ?? []);
+      setWarehouses(whs ?? []);
+      setRows((inv ?? []).map((i) => ({ 
+        ...(i as Inventory), 
+        product: pMap[(i as Inventory).product_id], 
+        branch: bMap[(i as Inventory).branch_id ?? ''], 
+        warehouse: wMap[(i as Inventory).warehouse_id ?? ''] 
+      })));
       setValuations((val ?? []) as InventoryValuation[]);
       setAlerts((alts ?? []) as StockAlert[]);
       setAging((agingData ?? []) as unknown as InventoryAgingEntry[]);
+    } catch (error) {
+      console.error('Failed to load inventory data:', error);
+    } finally {
       setLoading(false);
-    })();
+    }
   }, []);
 
-  const filtered = rows.filter((r) => (r.product?.name ?? '').toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => {
+    fetchInventoryData();
+  }, [fetchInventoryData]);
+
+  const filtered = rows.filter((r) => 
+    (r.product?.name ?? '').toLowerCase().includes(query.toLowerCase()) ||
+    (r.product?.sku ?? '').toLowerCase().includes(query.toLowerCase())
+  );
+
   const totalUnits = rows.reduce((s, r) => s + r.quantity_on_hand, 0);
   const totalValue = valuations.reduce((s, v) => s + Number(v.total_cost_value), 0);
   const totalRetail = valuations.reduce((s, v) => s + Number(v.total_retail_value), 0);
@@ -54,14 +113,88 @@ export default function AdminInventory() {
     setSelectedAlert(null);
   };
 
+  const handleExecuteTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return;
+
+    setActionLoading(true);
+    try {
+      await executeWarehouseTransfer({
+        productId: transferForm.productId,
+        fromWarehouseId: transferForm.fromWarehouseId,
+        toBranchId: transferForm.toBranchId,
+        quantity: transferForm.quantity,
+        userId: user.id,
+      });
+      setTransferModalOpen(false);
+      await fetchInventoryData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Transfer failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReceiveStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return;
+
+    setActionLoading(true);
+    try {
+      await receiveInventory({
+        productId: receiveForm.productId,
+        locationId: receiveForm.locationId,
+        isWarehouse: receiveForm.isWarehouse,
+        quantity: receiveForm.quantity,
+        userId: user.id,
+      });
+      setReceiveModalOpen(false);
+      await fetchInventoryData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Stock receiving failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAdjustStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return;
+
+    setActionLoading(true);
+    try {
+      await adjustInventory({
+        productId: adjustForm.productId,
+        locationId: adjustForm.locationId,
+        isWarehouse: adjustForm.isWarehouse,
+        quantityDelta: adjustForm.quantityDelta,
+        reason: adjustForm.reason,
+        userId: user.id,
+      });
+      setAdjustModalOpen(false);
+      await fetchInventoryData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Adjustment failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const fastCount = aging.filter((a) => a.movement_category === 'fast').length;
   const slowCount = aging.filter((a) => a.movement_category === 'slow').length;
   const deadCount = aging.filter((a) => a.movement_category === 'dead').length;
 
   return (
     <div>
-      <AdminPageHeader title="Inventory" subtitle="Track stock across branches and warehouses." />
+      <AdminPageHeader 
+        title="Inventory" 
+        subtitle="Track stock across branches and warehouses." 
+      />
 
+      {/* Primary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />) : (
           <>
@@ -100,18 +233,42 @@ export default function AdminInventory() {
 
       {tab === 'stock' && (
         <>
-          <div className="flex flex-wrap gap-3 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search inventory…" className="input pl-11" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search inventory by name or SKU…" className="input pl-11" />
+            </div>
+
+            {/* Inventory Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button onClick={() => setTransferModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
+                <ArrowRightLeft className="w-3.5 h-3.5 text-gold-300" /> Transfer
+              </button>
+              <button onClick={() => setReceiveModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
+                <PlusCircle className="w-3.5 h-3.5 text-accent-400" /> Receive
+              </button>
+              <button onClick={() => setAdjustModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-warning-400" /> Adjust
+              </button>
+              <button onClick={fetchInventoryData} className="btn-secondary py-2 px-2.5 text-xs" title="Refresh">
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </div>
+
           <DataTable
             loading={loading}
             rows={filtered}
             columns={[
               { key: 'product', label: 'Product', render: (r) => <div><p className="font-medium text-ink-100">{r.product?.name ?? '—'}</p><p className="text-xs text-ink-500">{r.product?.sku ?? '—'}</p></div> },
-              { key: 'location', label: 'Location', render: (r) => <span className="text-ink-300">{r.warehouse?.name ?? r.branch?.name ?? '—'}</span> },
+              { key: 'location', label: 'Location', render: (r) => (
+                <div className="flex items-center gap-1.5">
+                  <Badge color={r.warehouse ? 'neutral' : 'gold'}>
+                    {r.warehouse ? 'WH' : 'BR'}
+                  </Badge>
+                  <span className="text-ink-300">{r.warehouse?.name ?? r.branch?.name ?? '—'}</span>
+                </div>
+              )},
               { key: 'batch_number', label: 'Batch', render: (r) => <span className="font-mono text-xs text-ink-400">{r.batch_number ?? '—'}</span> },
               { key: 'expiry_date', label: 'Expiry', render: (r) => <span className="text-ink-300 text-xs">{r.expiry_date ? formatDate(r.expiry_date) : '—'}</span> },
               { key: 'quantity_on_hand', label: 'On Hand', render: (r) => <span className="font-semibold text-ink-100">{r.quantity_on_hand}</span> },
@@ -188,6 +345,117 @@ export default function AdminInventory() {
         />
       )}
 
+      {/* Transfer Stock Modal */}
+      <Modal open={transferModalOpen} onClose={() => setTransferModalOpen(false)} title="Transfer Stock" size="md">
+        <form onSubmit={handleExecuteTransfer} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Product ID</label>
+            <input required value={transferForm.productId} onChange={(e) => setTransferForm({ ...transferForm, productId: e.target.value })} placeholder="Enter product UUID" className="input" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-ink-300 mb-1">From Warehouse</label>
+              <select required value={transferForm.fromWarehouseId} onChange={(e) => setTransferForm({ ...transferForm, fromWarehouseId: e.target.value })} className="input">
+                <option value="">Select Warehouse</option>
+                {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-ink-300 mb-1">To Branch</label>
+              <select required value={transferForm.toBranchId} onChange={(e) => setTransferForm({ ...transferForm, toBranchId: e.target.value })} className="input">
+                <option value="">Select Branch</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Quantity</label>
+            <input type="number" min="1" required value={transferForm.quantity} onChange={(e) => setTransferForm({ ...transferForm, quantity: Number(e.target.value) })} className="input" />
+          </div>
+          <button type="submit" disabled={actionLoading} className="btn-primary w-full py-2.5">
+            {actionLoading ? 'Executing Transfer…' : 'Execute Transfer'}
+          </button>
+        </form>
+      </Modal>
+
+      {/* Receive Stock Modal */}
+      <Modal open={receiveModalOpen} onClose={() => setReceiveModalOpen(false)} title="Receive Stock" size="md">
+        <form onSubmit={handleReceiveStock} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Product ID</label>
+            <input required value={receiveForm.productId} onChange={(e) => setReceiveForm({ ...receiveForm, productId: e.target.value })} placeholder="Enter product UUID" className="input" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Location Type</label>
+            <select value={receiveForm.isWarehouse ? 'wh' : 'br'} onChange={(e) => setReceiveForm({ ...receiveForm, isWarehouse: e.target.value === 'wh', locationId: '' })} className="input">
+              <option value="wh">Warehouse</option>
+              <option value="br">Branch</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Destination Location</label>
+            <select required value={receiveForm.locationId} onChange={(e) => setReceiveForm({ ...receiveForm, locationId: e.target.value })} className="input">
+              <option value="">Select Location</option>
+              {receiveForm.isWarehouse
+                ? warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)
+                : branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Quantity Received</label>
+            <input type="number" min="1" required value={receiveForm.quantity} onChange={(e) => setReceiveForm({ ...receiveForm, quantity: Number(e.target.value) })} className="input" />
+          </div>
+          <button type="submit" disabled={actionLoading} className="btn-primary w-full py-2.5">
+            {actionLoading ? 'Receiving Stock…' : 'Receive Stock'}
+          </button>
+        </form>
+      </Modal>
+
+      {/* Adjust Stock Modal */}
+      <Modal open={adjustModalOpen} onClose={() => setAdjustModalOpen(false)} title="Adjust Stock" size="md">
+        <form onSubmit={handleAdjustStock} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Product ID</label>
+            <input required value={adjustForm.productId} onChange={(e) => setAdjustForm({ ...adjustForm, productId: e.target.value })} placeholder="Enter product UUID" className="input" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Location Type</label>
+            <select value={adjustForm.isWarehouse ? 'wh' : 'br'} onChange={(e) => setAdjustForm({ ...adjustForm, isWarehouse: e.target.value === 'wh', locationId: '' })} className="input">
+              <option value="wh">Warehouse</option>
+              <option value="br">Branch</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-300 mb-1">Location</label>
+            <select required value={adjustForm.locationId} onChange={(e) => setAdjustForm({ ...adjustForm, locationId: e.target.value })} className="input">
+              <option value="">Select Location</option>
+              {adjustForm.isWarehouse
+                ? warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)
+                : branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-ink-300 mb-1">Adjustment Delta (+/-)</label>
+              <input type="number" required value={adjustForm.quantityDelta} onChange={(e) => setAdjustForm({ ...adjustForm, quantityDelta: Number(e.target.value) })} className="input" placeholder="e.g. -5 or 10" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-ink-300 mb-1">Reason</label>
+              <select value={adjustForm.reason} onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })} className="input">
+                <option value="correction">Correction</option>
+                <option value="damage">Damaged Goods</option>
+                <option value="shrinkage">Shrinkage / Theft</option>
+                <option value="audit">Audit Balance</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" disabled={actionLoading} className="btn-primary w-full py-2.5">
+            {actionLoading ? 'Saving Adjustment…' : 'Save Adjustment'}
+          </button>
+        </form>
+      </Modal>
+
+      {/* Resolve Alert Modal */}
       <Modal open={!!selectedAlert} onClose={() => setSelectedAlert(null)} title="Resolve Alert" size="sm">
         {selectedAlert && (
           <div className="space-y-4">
