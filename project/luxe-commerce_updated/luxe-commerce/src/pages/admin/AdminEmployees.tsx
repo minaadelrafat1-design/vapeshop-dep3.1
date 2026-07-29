@@ -308,7 +308,7 @@ export default function AdminEmployees() {
 
       {/* Add/Edit Employee Modal */}
       <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editing ? 'Edit Employee' : 'Create Employee Account'} size="md">
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-2">
           {!editing && (
             <div className="glass rounded-xl p-3 text-xs text-ink-400 flex items-start gap-2">
               <KeyRound className="w-4 h-4 text-gold-400 shrink-0 mt-0.5" />
