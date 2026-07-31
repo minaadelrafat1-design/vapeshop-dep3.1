@@ -7,7 +7,7 @@ import { ToastProvider } from '@/context/ToastContext';
 import { StorefrontLayout } from '@/components/storefront/StorefrontLayout';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { PermissionRoute } from '@/components/auth/PermissionRoute';
+import PermissionRoute from '@/components/auth/PermissionRoute';
 import { Spinner } from '@/components/ui/Card';
 
 // Storefront pages — lazy loaded for code splitting

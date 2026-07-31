@@ -619,16 +619,7 @@ export default function AdminReports() {
           { key: 'total_amount', label: 'Total', format: fmtMoney },
           { key: 'avg_amount', label: 'Average', format: fmtMoney },
         ];
-      case 'employee':
-        return [
-          { key: 'employee_name', label: 'Employee' },
-          { key: 'email', label: 'Email' },
-          { key: 'position', label: 'Position' },
-          { key: 'branch_name', label: 'Branch' },
-          { key: 'total_sales', label: 'Total Sales', format: fmtMoney },
-          { key: 'order_count', label: 'Orders' },
-          { key: 'avg_sale_value', label: 'Avg Sale', format: fmtMoney },
-        ];
+      
       default:
         return [];
     }
