@@ -1,5 +1,6 @@
 import React from 'react';
-import { useAuth } from '@/context/AuthContext'; // Uses your existing import path
+import { useAuth } from '@/context/AuthContext';
+import { PermissionRoute } from '@/components/auth/PermissionRoute';
 
 interface PermissionRouteProps {
   children: React.ReactNode;
@@ -7,7 +8,7 @@ interface PermissionRouteProps {
   allowedRoles?: string[];
 }
 
-export const PermissionRoute: React.FC<PermissionRouteProps> = ({
+export const PermissionRouteComponent: React.FC<PermissionRouteProps> = ({
   children,
   permission,
   allowedRoles = [],
@@ -22,11 +23,9 @@ export const PermissionRoute: React.FC<PermissionRouteProps> = ({
     );
   }
 
-  // Extract roles and email cleanly
   const userRole = (role || user?.role || user?.user_metadata?.role || '').toLowerCase();
   const userEmail = user?.email?.toLowerCase();
 
-  // ONLY grants full override to Super Admins / Owners
   const isSuperAdmin =
     userRole === 'super_admin' ||
     userRole === 'superadmin' ||
@@ -37,7 +36,6 @@ export const PermissionRoute: React.FC<PermissionRouteProps> = ({
     return <>{children}</>;
   }
 
-  // ALL OTHER ROLES are strictly checked against allowedRoles here
   const hasRole =
     allowedRoles.length === 0 ||
     allowedRoles.map((r) => r.toLowerCase()).includes(userRole);
@@ -56,4 +54,4 @@ export const PermissionRoute: React.FC<PermissionRouteProps> = ({
   return <>{children}</>;
 };
 
-export default PermissionRoute;
+export default PermissionRouteComponent;

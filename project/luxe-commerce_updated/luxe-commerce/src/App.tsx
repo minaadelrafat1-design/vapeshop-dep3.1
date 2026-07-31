@@ -131,7 +131,7 @@ export default function App() {
                     <Route path="security" element={<PermissionRoute permission="reports.financial"><AdminSecurity /></PermissionRoute>} />
                     <Route path="branches" element={<PermissionRoute permission="branches.manage"><AdminBranches /></PermissionRoute>} />
                     <Route path="warehouses" element={<PermissionRoute permission="warehouses.manage"><AdminWarehouses /></PermissionRoute>} />
-                    <Route path="employees" element={<AdminEmployees />} />
+                    <Route path="employees" element={<PermissionRoute allowedRoles={['super_admin', 'admin', 'company_owner']}><AdminEmployees /></PermissionRoute>} />
                     <Route path="suppliers" element={<PermissionRoute permission="suppliers.manage"><AdminSuppliers /></PermissionRoute>} />
                     <Route path="purchase-orders" element={<PermissionRoute permission="purchase_orders.manage"><AdminPurchaseOrders /></PermissionRoute>} />
                     <Route path="reports" element={<PermissionRoute permission="reports.financial"><AdminReports /></PermissionRoute>} />

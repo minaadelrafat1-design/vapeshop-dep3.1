@@ -11,14 +11,14 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 const nav = [
-  { group: 'Overview', items: [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }] },
+  { group: 'Overview', items: [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true, permission: 'dashboard.view' }] },
   {
     group: 'Commerce', items: [
-      { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
-      { to: '/admin/returns-refunds', label: 'Returns & Refunds', icon: RotateCcw },
-      { to: '/admin/products', label: 'Products', icon: Package },
-      { to: '/admin/categories', label: 'Categories', icon: FolderTree },
-      { to: '/admin/customers', label: 'Customers', icon: Users },
+      { to: '/admin/orders', label: 'Orders', icon: ShoppingCart, permission: 'orders.manage' },
+      { to: '/admin/returns-refunds', label: 'Returns & Refunds', icon: RotateCcw, permission: 'orders.manage' },
+      { to: '/admin/products', label: 'Products', icon: Package, permission: 'products.manage' },
+      { to: '/admin/categories', label: 'Categories', icon: FolderTree, permission: 'products.manage' },
+      { to: '/admin/customers', label: 'Customers', icon: Users, permission: 'customers.manage' },
     ],
   },
   {
@@ -36,7 +36,7 @@ const nav = [
     group: 'Operations', items: [
       { to: '/admin/branches', label: 'Branches', icon: Building2, permission: 'branches.manage' },
       { to: '/admin/warehouses', label: 'Warehouses', icon: Warehouse, permission: 'warehouses.manage' },
-      { to: '/admin/employees', label: 'Employees', icon: UserCog },
+      { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: 'employees.manage' },
     ],
   },
   {
@@ -48,20 +48,40 @@ const nav = [
   {
     group: 'Insights', items: [
       { to: '/admin/reports', label: 'Reports', icon: BarChart3, permission: 'reports.financial' },
-      { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/admin/analytics', label: 'Analytics', icon: BarChart3, permission: 'reports.financial' },
       { to: '/admin/notifications', label: 'Notifications', icon: Bell },
     ],
   },
   {
     group: 'Administration', items: [
-      { to: '/admin/settings', label: 'Settings', icon: Settings },
-      { to: '/admin/content', label: 'Website Content', icon: FileText },
+      { to: '/admin/settings', label: 'Settings', icon: Settings, permission: 'settings.manage' },
+      { to: '/admin/content', label: 'Website Content', icon: FileText, permission: 'content.manage' },
       { to: '/admin/roles', label: 'Roles', icon: ShieldCheck, permission: 'roles.manage' },
       { to: '/admin/permissions', label: 'Permissions', icon: KeyRound, permission: 'permissions.manage' },
-      { to: '/admin/audit-logs', label: 'Audit Logs', icon: ScrollText },
+      { to: '/admin/audit-logs', label: 'Audit Logs', icon: ScrollText, permission: 'audit_logs.view' },
     ],
   },
 ];
+
+// Define allowed paths or rules for every specific role in your system
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  warehouse_manager: [
+    '/admin',
+    '/admin/inventory',
+    '/admin/inventory-timeline',
+    '/admin/cycle-counts',
+    '/admin/stock-transfers',
+    '/admin/warehouses',
+  ],
+  branch_manager: [
+    '/admin',
+    '/admin/orders',
+    '/admin/products',
+    '/admin/customers',
+    '/admin/inventory',
+  ],
+  // Add any other custom roles here easily!
+};
 
 export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -78,7 +98,22 @@ export function AdminLayout() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  const hasPermission = (perm?: string) => !perm || userPermissions.includes(perm);
+  const hasPermission = (item: any) => {
+    const role = (profile?.role || '').toLowerCase().trim().replace(/[-\s]/g, '_');
+    
+    // 1. Full access roles
+    const isAdmin = ['super_admin', 'company_owner', 'admin'].includes(role);
+    if (isAdmin) return true;
+
+    // 2. Check if the role exists in our custom mappings list
+    if (ROLE_PERMISSIONS[role]) {
+      return ROLE_PERMISSIONS[role].includes(item.to);
+    }
+
+    // 3. Fallback to database permission keys for any other role
+    return !item.permission || userPermissions.includes(item.permission);
+  };
+
   const roleLabel = profile?.role ? profile.role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Administrator';
 
   return (
@@ -93,31 +128,34 @@ export function AdminLayout() {
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-ink-400"><X className="w-5 h-5" /></button>
         </div>
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6 no-scrollbar">
-          {nav.map((section) => (
-            <div key={section.group}>
-              <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-500">{section.group}</p>
-              <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  if (!hasPermission((item as { permission?: string }).permission)) return null;
-                  return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={(item as { end?: boolean }).end}
-                    onClick={() => setSidebarOpen(false)}
-                    className={({ isActive }) => cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition',
-                      isActive ? 'bg-gold-500/15 text-gold-300 border border-gold-500/20' : 'text-ink-300 hover:bg-white/5 hover:text-ink-100',
-                    )}
-                  >
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    {item.label}
-                  </NavLink>
-                  );
-                })}
+          {nav.map((section) => {
+            const visibleItems = section.items.filter((item) => hasPermission(item));
+            
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={section.group}>
+                <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-500">{section.group}</p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={(item as { end?: boolean }).end}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) => cn(
+                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition',
+                        isActive ? 'bg-gold-500/15 text-gold-300 border border-gold-500/20' : 'text-ink-300 hover:bg-white/5 hover:text-ink-100',
+                      )}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
         <div className="p-3 border-t border-white/10 shrink-0">
           <button onClick={async () => { await signOut(); navigate('/'); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-error-400 hover:bg-error-500/10 transition">
