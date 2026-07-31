@@ -9,7 +9,6 @@ import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/Input';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
-import { PermissionRoute } from '@/components/auth/PermissionRoute';
 import { supabase } from '@/lib/supabase';
 import type { Employee, Branch, Role, Permission } from '@/types';
 import { formatDate } from '@/lib/utils';
