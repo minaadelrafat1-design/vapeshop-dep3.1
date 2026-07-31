@@ -252,10 +252,8 @@ export default function AdminEmployees() {
         title="Employees"
         subtitle={`${rows.length} team members`}
         action={canManage ? (
-          <PermissionRoute allowedRoles={['super_admin', 'admin', 'company_owner']}>
-            <Button onClick={openAdd}><Plus className="w-4 h-4" /> Create Employee Account</Button>
-          </PermissionRoute>
-        ) : undefined}
+  <Button onClick={openAdd}><Plus className="w-4 h-4" /> Create Employee Account</Button>
+) : undefined}
       />
 
       <DataTable<Employee>
@@ -296,17 +294,16 @@ export default function AdminEmployees() {
           }},
           { key: 'status', label: 'Status', render: (e) => <Badge color={e.status === 'active' ? 'success' : 'neutral'}>{e.status}</Badge> },
           {
-            key: 'actions', label: '',
-            render: (e) => (
-              <PermissionRoute allowedRoles={['super_admin', 'admin', 'company_owner']}>
-                <div className="flex gap-2">
-                  <button onClick={() => viewDetail(e)} className="text-ink-400 hover:text-gold-300" title="Manage roles & permissions"><ShieldCheck className="w-4 h-4" /></button>
-                  <button onClick={() => openEdit(e)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
-                  <button onClick={() => handleDelete(e)} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </PermissionRoute>
-            ),
-          },
+      key: 'actions',
+      label: '',
+      render: (e) => (
+        <div className="flex gap-2">
+          <button onClick={() => viewDetail(e)} className="text-ink-400 hover:text-gold-300" title="View"><Eye className="w-4 h-4" /></button>
+          <button onClick={() => openEdit(e)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => handleDelete(e)} className="text-ink-400 hover:text-error-500"><Trash className="w-4 h-4" /></button>
+        </div>
+      ),
+    },
         ]}
       />
 
