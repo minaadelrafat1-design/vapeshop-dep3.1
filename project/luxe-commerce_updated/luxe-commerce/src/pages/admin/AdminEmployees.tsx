@@ -48,7 +48,7 @@ const STAFF_ROLES = [
 export default function AdminEmployees() {
   const { rows, loading, remove, update, refetch } = useAdminTable<Employee>('employees', 'created_at', false);
   const { toast } = useToast();
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const canManage = canManageEmployees(profile?.role);
   const assignableRoles = STAFF_ROLES.filter((r) => canAssignRole(profile?.role, r.value));
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -141,7 +141,6 @@ export default function AdminEmployees() {
       if (error.code === '23505') toast('Role already assigned', 'info');
       else toast(error.message, 'error');
     } else {
-      // Find matching user profile by employee email and update it permanently
       const targetEmp = rows.find(emp => emp.id === employeeId);
       if (targetEmp?.email) {
         const { data: matchedProfile } = await supabase
@@ -155,6 +154,7 @@ export default function AdminEmployees() {
         }
       }
 
+      await refreshProfile();
       toast(`Role "${roleName}" assigned`, 'success');
       setDetailRoles((prev) => [...prev, roleName]);
       refetch();
@@ -171,6 +171,7 @@ export default function AdminEmployees() {
       .eq('role_id', targetRole.id);
     if (error) toast(error.message, 'error');
     else {
+      await refreshProfile();
       toast(`Role "${roleName}" removed`, 'info');
       setDetailRoles((prev) => prev.filter((r) => r !== roleName));
       refetch();
@@ -213,7 +214,6 @@ export default function AdminEmployees() {
         return;
       }
 
-      // Update role assignment records
       const currentRoles = employeeRoles[editing.id] ?? [];
       if (form.role && !currentRoles.includes(form.role)) {
         for (const oldRole of currentRoles) {
@@ -228,7 +228,6 @@ export default function AdminEmployees() {
         }
       }
 
-      // PERMANENT FIX: Match profile by email and update the role seamlessly
       const { data: matchedProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -239,6 +238,7 @@ export default function AdminEmployees() {
         await supabase.from('profiles').update({ role: form.role }).eq('id', matchedProfile.id);
       }
 
+      await refreshProfile();
       toast('Employee updated successfully', 'success');
       setFormOpen(false);
       refetch();
