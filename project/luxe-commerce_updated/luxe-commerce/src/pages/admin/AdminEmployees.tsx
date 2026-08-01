@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, KeyRound, ShieldCheck, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, KeyRound, ShieldCheck } from 'lucide-react';
 import { useAdminTable } from '@/hooks/useAdminTable';
 import { AdminPageHeader } from '@/components/admin/AdminLayout';
 import { DataTable } from '@/components/admin/AdminComponents';
@@ -53,7 +53,7 @@ export default function AdminEmployees() {
   const assignableRoles = STAFF_ROLES.filter((r) => canAssignRole(profile?.role, r.value));
   const [branches, setBranches] = useState<Branch[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [, setPermissions] = useState<Permission[]>([]);
   const [employeeRoles, setEmployeeRoles] = useState<Record<string, string[]>>({});
 
   const [formOpen, setFormOpen] = useState(false);
@@ -141,8 +141,20 @@ export default function AdminEmployees() {
       if (error.code === '23505') toast('Role already assigned', 'info');
       else toast(error.message, 'error');
     } else {
-      // Also update the profiles table for seamless frontend sync
-      await supabase.from('profiles').update({ role: roleName }).eq('id', employeeId);
+      // Find matching user profile by employee email and update it permanently
+      const targetEmp = rows.find(emp => emp.id === employeeId);
+      if (targetEmp?.email) {
+        const { data: matchedProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', targetEmp.email.trim())
+          .maybeSingle();
+
+        if (matchedProfile) {
+          await supabase.from('profiles').update({ role: roleName }).eq('id', matchedProfile.id);
+        }
+      }
+
       toast(`Role "${roleName}" assigned`, 'success');
       setDetailRoles((prev) => [...prev, roleName]);
       refetch();
@@ -201,7 +213,7 @@ export default function AdminEmployees() {
         return;
       }
 
-      // Update role assignment and mirror to profile
+      // Update role assignment records
       const currentRoles = employeeRoles[editing.id] ?? [];
       if (form.role && !currentRoles.includes(form.role)) {
         for (const oldRole of currentRoles) {
@@ -216,8 +228,16 @@ export default function AdminEmployees() {
         }
       }
 
-      // Force update profiles table column so auth context reads it instantly
-      await supabase.from('profiles').update({ role: form.role }).eq('id', editing.id);
+      // PERMANENT FIX: Match profile by email and update the role seamlessly
+      const { data: matchedProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', form.email.trim())
+        .maybeSingle();
+
+      if (matchedProfile) {
+        await supabase.from('profiles').update({ role: form.role }).eq('id', matchedProfile.id);
+      }
 
       toast('Employee updated successfully', 'success');
       setFormOpen(false);
@@ -420,8 +440,4 @@ export default function AdminEmployees() {
       </Modal>
     </div>
   );
-}
-
-function rolePermissionsForRole(_role: Role, _permissions: Permission[]): string[] {
-  return [];
 }
