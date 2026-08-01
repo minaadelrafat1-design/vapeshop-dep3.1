@@ -20,6 +20,7 @@ interface AuthContextValue {
   signUp: (email: string, password: string, name?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshCustomer: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   verifyEmail: () => Promise<{ error: string | null }>;
 }
@@ -43,6 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadCustomer = async (uid: string) => {
     const { data } = await supabase.from('customers').select('*').eq('user_id', uid).maybeSingle();
     setCustomer(data as Customer | null);
+  };
+
+  const refreshProfile = async () => {
+    if (session?.user) {
+      await loadProfile(session.user.id);
+    }
   };
 
   useEffect(() => {
@@ -109,8 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         last_name: rest.join(' ') || null,
       });
       if (custError) {
-        // RLS may block this if email confirmation is required — not fatal,
-        // the customer row will be created on first sign-in
         console.warn('Could not create customer row during signup:', custError.message);
       }
     }
@@ -118,7 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string, remember = false): Promise<{ error: string | null; profile: Profile | null }> => {
-    // Server-side lockout check (authoritative)
     const serverLocked = await checkServerLockout(email);
     if (serverLocked || isAccountLocked(email)) {
       return { error: `Too many failed attempts. Account locked after ${LOCK_THRESHOLD} tries. Try again in 15 minutes or reset your password.`, profile: null };
@@ -186,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         session, user: session?.user ?? null, customer, profile, role, loading,
-        signIn, signUp, signOut, refreshCustomer, resetPassword, verifyEmail,
+        signIn, signUp, signOut, refreshCustomer, refreshProfile, resetPassword, verifyEmail,
       }}
     >
       {children}
