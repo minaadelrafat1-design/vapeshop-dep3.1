@@ -117,6 +117,20 @@ export default function AdminEmployees() {
     setFormOpen(true);
   };
 
+  // Synchronize Position text automatically whenever the Role dropdown changes in the form modal
+  const handleRoleChange = (selectedRoleName: string) => {
+    const formattedPosition = selectedRoleName
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+
+    setForm({
+      ...form,
+      role: selectedRoleName,
+      position: formattedPosition, // Auto-updates the position field cleanly
+    });
+  };
+
   const viewDetail = async (e: Employee) => {
     setDetailEmployee(e);
     setDetailLoading(true);
@@ -206,7 +220,7 @@ export default function AdminEmployees() {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         phone: form.phone.trim() || null,
-        position: form.position.trim() || null,
+        position: form.position.trim() || null, // Synchronized position value
         branch_id: form.branch_id || null,
         hire_date: form.hire_date || null,
         status: form.status,
@@ -372,7 +386,7 @@ export default function AdminEmployees() {
           {!editing && (
             <Input label="Temporary Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} hint="Min 6 characters" />
           )}
-          <Select label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+          <Select label="Role" value={form.role} onChange={(e) => handleRoleChange(e.target.value)}>
             {assignableRoles.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </Select>
           <div className="grid sm:grid-cols-2 gap-4">
