@@ -143,14 +143,18 @@ export default function AdminEmployees() {
     } else {
       const targetEmp = rows.find(emp => emp.id === employeeId);
       if (targetEmp?.email) {
-        const { data: matchedProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', targetEmp.email.trim())
-          .maybeSingle();
+        if (targetEmp.email.toLowerCase() === profile?.email?.toLowerCase() && profile?.id) {
+          await supabase.from('profiles').update({ role: roleName }).eq('id', profile.id);
+        } else {
+          const { data: matchedProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', targetEmp.email.trim())
+            .maybeSingle();
 
-        if (matchedProfile) {
-          await supabase.from('profiles').update({ role: roleName }).eq('id', matchedProfile.id);
+          if (matchedProfile) {
+            await supabase.from('profiles').update({ role: roleName }).eq('id', matchedProfile.id);
+          }
         }
       }
 
@@ -228,14 +232,21 @@ export default function AdminEmployees() {
         }
       }
 
-      const { data: matchedProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', form.email.trim())
-        .maybeSingle();
+      const targetEmp = rows.find(emp => emp.id === editing.id);
+      if (targetEmp?.email) {
+        if (targetEmp.email.toLowerCase() === profile?.email?.toLowerCase() && profile?.id) {
+          await supabase.from('profiles').update({ role: form.role }).eq('id', profile.id);
+        } else {
+          const { data: matchedProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', targetEmp.email.trim())
+            .maybeSingle();
 
-      if (matchedProfile) {
-        await supabase.from('profiles').update({ role: form.role }).eq('id', matchedProfile.id);
+          if (matchedProfile) {
+            await supabase.from('profiles').update({ role: form.role }).eq('id', matchedProfile.id);
+          }
+        }
       }
 
       await refreshProfile();
