@@ -6,6 +6,7 @@ import { DataTable, StatCard } from '@/components/admin/AdminComponents';
 import { Badge, Skeleton, EmptyState } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { ReorderSuggestionView, DeadStockEntry, FastMovingProduct, SlowMovingProduct } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -13,6 +14,8 @@ type Tab = 'reorder' | 'fast' | 'slow' | 'dead';
 
 export default function AdminReorderSuggestions() {
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('inventory.valuation');
   const [tab, setTab] = useState<Tab>('reorder');
   const [reorder, setReorder] = useState<ReorderSuggestionView[]>([]);
   const [deadStock, setDeadStock] = useState<DeadStockEntry[]>([]);
@@ -72,7 +75,7 @@ export default function AdminReorderSuggestions() {
       <AdminPageHeader
         title="Inventory Intelligence"
         subtitle="Reorder suggestions, fast/slow/dead stock analysis"
-        action={<Button onClick={generate} disabled={generating}><RefreshCw className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} /> {generating ? 'Generating…' : 'Generate Suggestions'}</Button>}
+        action={editable ? <Button onClick={generate} disabled={generating}><RefreshCw className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} /> {generating ? 'Generating…' : 'Generate Suggestions'}</Button> : undefined}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -108,7 +111,7 @@ export default function AdminReorderSuggestions() {
               { key: 'estimated_cost', label: 'Est. Cost', render: (r) => <span className="text-ink-100">{formatCurrency(r.estimated_cost)}</span> },
               { key: 'urgency', label: 'Urgency', render: (r) => <Badge color={r.urgency === 'critical' ? 'error' : r.urgency === 'high' ? 'warning' : r.urgency === 'medium' ? 'gold' : 'neutral'}>{r.urgency}</Badge> },
               { key: 'status', label: 'Status', render: (r) => <Badge color={r.status === 'pending' ? 'gold' : r.status === 'ordered' ? 'accent' : 'neutral'}>{r.status}</Badge> },
-              { key: 'actions', label: '', render: (r) => r.status === 'pending' ? <button onClick={() => dismiss(r.id)} className="text-ink-400 hover:text-error-500" title="Dismiss"><XCircle className="w-4 h-4" /></button> : null },
+              { key: 'actions', label: '', render: (r) => r.status === 'pending' && editable ? <button onClick={() => dismiss(r.id)} className="text-ink-400 hover:text-error-500" title="Dismiss"><XCircle className="w-4 h-4" /></button> : null },
             ]}
           />
         )

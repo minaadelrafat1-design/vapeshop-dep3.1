@@ -4,6 +4,7 @@ import { AdminPageHeader } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea } from '@/components/ui/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Skeleton } from '@/components/ui/Card';
 
@@ -32,6 +33,8 @@ function extractString(v: unknown): string {
 
 export default function AdminContent() {
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('content.manage');
   const [rows, setRows] = useState<SettingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,10 +108,12 @@ export default function AdminContent() {
         title="Website Content"
         subtitle="Edit text and images shown across your storefront."
         action={
-          <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? 'Saving…' : 'Save Changes'}
-          </Button>
+          editable ? (
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? 'Saving…' : 'Save Changes'}
+            </Button>
+          ) : undefined
         }
       />
       <div className="grid lg:grid-cols-[200px_1fr] gap-6">
@@ -138,12 +143,14 @@ export default function AdminContent() {
                     onChange={(e) => setDrafts({ ...drafts, [r.key]: e.target.value })}
                     rows={isUrl ? 2 : 4}
                     placeholder={isUrl ? 'Leave blank to use the default image' : ''}
+                    disabled={!editable}
                   />
                 ) : (
                   <Input
                     value={val}
                     onChange={(e) => setDrafts({ ...drafts, [r.key]: e.target.value })}
                     placeholder={isUrl ? 'Leave blank to use the default image' : ''}
+                    disabled={!editable}
                   />
                 )}
                 {isUrl && (

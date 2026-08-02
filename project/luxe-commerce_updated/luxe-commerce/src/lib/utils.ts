@@ -53,3 +53,10 @@ export const timeAgo = (value: string | Date): string => {
 };
 
 export const clamp = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n));
+
+/**
+ * Normalizes a search string for comparison: lowercase, trimmed, with
+ * internal whitespace collapsed to single spaces.
+ */
+export const normalizeSearchTerm = (input: string): string =>
+  input.toLowerCase().trim().replace(/\s+/g, ' ');

@@ -7,6 +7,7 @@ import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { StockTransfer, Product, Branch, Warehouse } from '@/types';
 import { formatDate } from '@/lib/utils';
 
@@ -18,6 +19,8 @@ export default function AdminStockTransfers() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('inventory.transfer');
 
   useEffect(() => {
     (async () => {
@@ -57,7 +60,7 @@ export default function AdminStockTransfers() {
 
   return (
     <div>
-      <AdminPageHeader title="Stock Transfers" subtitle={`${transfers.length} transfers`} action={<Button><Plus className="w-4 h-4" /> New Transfer</Button>} />
+      <AdminPageHeader title="Stock Transfers" subtitle={`${transfers.length} transfers`} action={editable ? <Button><Plus className="w-4 h-4" /> New Transfer</Button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />) : (
@@ -89,7 +92,7 @@ export default function AdminStockTransfers() {
           { key: 'status', label: 'Status', render: (t) => <Badge color={t.status === 'received' ? 'success' : t.status === 'cancelled' ? 'error' : t.status === 'in_transit' ? 'warning' : 'neutral'}>{t.status}</Badge> },
           { key: 'created_at', label: 'Date', render: (t) => <span className="text-ink-400">{formatDate(t.created_at)}</span> },
           { key: 'actions', label: '', render: (t) => (
-            t.status === 'in_transit' ? <button onClick={() => markReceived(t)} className="text-accent-400 hover:text-accent-300" title="Mark received"><CheckCircle2 className="w-4 h-4" /></button> : null
+            t.status === 'in_transit' && editable ? <button onClick={() => markReceived(t)} className="text-accent-400 hover:text-accent-300" title="Mark received"><CheckCircle2 className="w-4 h-4" /></button> : null
           ) },
         ]}
       />

@@ -6,8 +6,17 @@ import {
   fetchProfile, setSessionExpiry, isSessionExpired, clearSessionExpiry,
   getRememberPreference, recordFailedLogin, clearFailedLogins, isAccountLocked,
   logActivity, LOCK_THRESHOLD, checkServerLockout, recordServerLoginAttempt,
-  recordServerLoginHistory, validatePasswordServer,
+  recordServerLoginHistory, validatePasswordServer, isAdminRole, isStaffRole,
 } from '@/lib/auth';
+
+/**
+ * Per-permission access map: key = permission name (e.g. "products.manage"),
+ * value = true if the current user can edit that module, false if view-only.
+ * A key's mere presence means "has at least view access" — absence means no
+ * access to that module at all. Full-access roles (admin/super_admin/
+ * company_owner) bypass this entirely — see isAdminRole() usage below.
+ */
+type PermissionsMap = Record<string, boolean>;
 
 interface AuthContextValue {
   session: Session | null;
@@ -16,6 +25,12 @@ interface AuthContextValue {
   profile: Profile | null;
   role: UserRole | null;
   loading: boolean;
+  permissions: PermissionsMap;
+  permissionsLoaded: boolean;
+  /** Does the current user have at least view access to this permission key? */
+  canView: (permission: string) => boolean;
+  /** Does the current user have edit (not just view) access to this permission key? */
+  canEdit: (permission: string) => boolean;
   signIn: (email: string, password: string, remember?: boolean) => Promise<{ error: string | null; profile: Profile | null }>;
   signUp: (email: string, password: string, name?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -32,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<PermissionsMap>({});
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   const role: UserRole | null = profile?.role ?? null;
 
@@ -41,6 +58,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return p;
   };
 
+  const loadPermissions = async (userRole: UserRole | null | undefined) => {
+    if (!isStaffRole(userRole)) {
+      setPermissions({});
+      setPermissionsLoaded(true);
+      return;
+    }
+    const { data, error } = await supabase.rpc('get_employee_permissions');
+    if (!error && Array.isArray(data)) {
+      const map: PermissionsMap = {};
+      for (const row of data as { permission_name: string; can_edit: boolean }[]) {
+        map[row.permission_name] = !!row.can_edit;
+      }
+      setPermissions(map);
+    } else {
+      setPermissions({});
+    }
+    setPermissionsLoaded(true);
+  };
+
+  /** Full-access roles (admin/super_admin/company_owner) always see and edit everything. */
+  const canView = (permission: string): boolean => isAdminRole(role) || permission in permissions;
+  const canEdit = (permission: string): boolean => isAdminRole(role) || !!permissions[permission];
+
   const loadCustomer = async (uid: string) => {
     const { data } = await supabase.from('customers').select('*').eq('user_id', uid).maybeSingle();
     setCustomer(data as Customer | null);
@@ -48,7 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (session?.user) {
-      await loadProfile(session.user.id);
+      const p = await loadProfile(session.user.id);
+      await loadPermissions(p?.role);
     }
   };
 
@@ -59,8 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         Promise.all([
           loadProfile(data.session.user.id),
           loadCustomer(data.session.user.id),
-        ]).finally(() => setLoading(false));
+        ]).then(([p]) => loadPermissions(p?.role)).finally(() => setLoading(false));
       } else {
+        setPermissionsLoaded(true);
         setLoading(false);
       }
     });
@@ -69,14 +111,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       if (newSession?.user) {
         (async () => {
-          await Promise.all([
+          const [p] = await Promise.all([
             loadProfile(newSession.user.id),
             loadCustomer(newSession.user.id),
           ]);
+          await loadPermissions(p?.role);
         })();
       } else {
         setProfile(null);
         setCustomer(null);
+        setPermissions({});
+        setPermissionsLoaded(true);
       }
     });
 
@@ -165,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearSessionExpiry();
     setProfile(null);
     setCustomer(null);
+    setPermissions({});
   };
 
   const refreshCustomer = async () => {
@@ -190,6 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         session, user: session?.user ?? null, customer, profile, role, loading,
+        permissions, permissionsLoaded, canView, canEdit,
         signIn, signUp, signOut, refreshCustomer, refreshProfile, resetPassword, verifyEmail,
       }}
     >

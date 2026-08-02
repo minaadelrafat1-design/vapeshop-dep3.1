@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { Role } from '@/types';
 
 const ROLE_ICONS: Record<string, typeof Crown> = {
@@ -36,6 +37,8 @@ const emptyForm: RoleForm = { name: '', description: '', hierarchy_level: '10', 
 export default function AdminRoles() {
   const { rows, loading, remove, insert, update } = useAdminTable<Role>('roles', 'hierarchy_level', true);
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('roles.manage');
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Role | null>(null);
@@ -86,7 +89,7 @@ export default function AdminRoles() {
 
   return (
     <div>
-      <AdminPageHeader title="Roles" subtitle={`${rows.length} roles in hierarchy`} action={<Button onClick={openAdd}><Plus className="w-4 h-4" /> Add Role</Button>} />
+      <AdminPageHeader title="Roles" subtitle={`${rows.length} roles in hierarchy`} action={editable ? <Button onClick={openAdd}><Plus className="w-4 h-4" /> Add Role</Button> : undefined} />
 
       {/* Hierarchy tree */}
       <div className="glass-card p-6 mb-6">
@@ -121,8 +124,8 @@ export default function AdminRoles() {
           } },
           { key: 'actions', label: '', render: (r) => (
             <div className="flex gap-2">
-              <button onClick={() => openEdit(r)} className="text-ink-400 hover:text-gold-300" disabled={r.is_system}><Pencil className="w-4 h-4" /></button>
-              <button onClick={async () => { if (!r.is_system) { const { error } = await remove(r.id); if (error) toast(error, 'error'); else toast('Role deleted', 'info'); } }} className="text-ink-400 hover:text-error-500" disabled={r.is_system}><Trash2 className="w-4 h-4" /></button>
+              {editable && <button onClick={() => openEdit(r)} className="text-ink-400 hover:text-gold-300" disabled={r.is_system}><Pencil className="w-4 h-4" /></button>}
+              {editable && <button onClick={async () => { if (!r.is_system) { const { error } = await remove(r.id); if (error) toast(error, 'error'); else toast('Role deleted', 'info'); } }} className="text-ink-400 hover:text-error-500" disabled={r.is_system}><Trash2 className="w-4 h-4" /></button>}
             </div>
           ) },
         ]}

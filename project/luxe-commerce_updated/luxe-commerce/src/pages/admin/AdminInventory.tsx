@@ -9,15 +9,21 @@ import {
 } from '@/lib/inventoryService';
 import { AdminPageHeader } from '@/components/admin/AdminLayout';
 import { DataTable, StatCard } from '@/components/admin/AdminComponents';
+import { ProductPicker } from '@/components/admin/ProductPicker';
 import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import type { Product, Inventory, Branch, Warehouse, StockAlert, InventoryValuation, InventoryAgingEntry } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { matchesProductQuery } from '@/lib/productSearch';
+import { useAuth } from '@/context/AuthContext';
 
 type InventoryTab = 'stock' | 'valuation' | 'alerts' | 'aging';
 
 export default function AdminInventory() {
+  const { canEdit } = useAuth();
+  const editable = canEdit('inventory.valuation');
   const [rows, setRows] = useState<(Inventory & { product?: Product; branch?: Branch; warehouse?: Warehouse })[]>([]);
+  const [productList, setProductList] = useState<Product[]>([]);
   const [valuations, setValuations] = useState<InventoryValuation[]>([]);
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const [aging, setAging] = useState<InventoryAgingEntry[]>([]);
@@ -78,6 +84,7 @@ export default function AdminInventory() {
 
       setBranches(brs ?? []);
       setWarehouses(whs ?? []);
+      setProductList((prods ?? []) as Product[]);
       setRows((inv ?? []).map((i) => ({ 
         ...(i as Inventory), 
         product: pMap[(i as Inventory).product_id], 
@@ -98,10 +105,7 @@ export default function AdminInventory() {
     fetchInventoryData();
   }, [fetchInventoryData]);
 
-  const filtered = rows.filter((r) => 
-    (r.product?.name ?? '').toLowerCase().includes(query.toLowerCase()) ||
-    (r.product?.sku ?? '').toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = rows.filter((r) => matchesProductQuery(r.product ?? {}, query));
 
   const totalUnits = rows.reduce((s, r) => s + r.quantity_on_hand, 0);
   const totalValue = valuations.reduce((s, v) => s + Number(v.total_cost_value), 0);
@@ -115,6 +119,7 @@ export default function AdminInventory() {
 
   const handleExecuteTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!transferForm.productId) { alert('Please select a product'); return; }
     const user = (await supabase.auth.getUser()).data.user;
     if (!user) return;
 
@@ -138,6 +143,7 @@ export default function AdminInventory() {
 
   const handleReceiveStock = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!receiveForm.productId) { alert('Please select a product'); return; }
     const user = (await supabase.auth.getUser()).data.user;
     if (!user) return;
 
@@ -161,6 +167,7 @@ export default function AdminInventory() {
 
   const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!adjustForm.productId) { alert('Please select a product'); return; }
     const user = (await supabase.auth.getUser()).data.user;
     if (!user) return;
 
@@ -241,15 +248,21 @@ export default function AdminInventory() {
 
             {/* Inventory Action Buttons */}
             <div className="flex items-center gap-2">
-              <button onClick={() => setTransferModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
-                <ArrowRightLeft className="w-3.5 h-3.5 text-gold-300" /> Transfer
-              </button>
-              <button onClick={() => setReceiveModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
-                <PlusCircle className="w-3.5 h-3.5 text-accent-400" /> Receive
-              </button>
-              <button onClick={() => setAdjustModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-warning-400" /> Adjust
-              </button>
+              {canEdit('inventory.transfer') && (
+                <button onClick={() => setTransferModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-gold-300" /> Transfer
+                </button>
+              )}
+              {editable && (
+                <button onClick={() => setReceiveModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
+                  <PlusCircle className="w-3.5 h-3.5 text-accent-400" /> Receive
+                </button>
+              )}
+              {editable && (
+                <button onClick={() => setAdjustModalOpen(true)} className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-warning-400" /> Adjust
+                </button>
+              )}
               <button onClick={fetchInventoryData} className="btn-secondary py-2 px-2.5 text-xs" title="Refresh">
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               </button>
@@ -348,10 +361,13 @@ export default function AdminInventory() {
       {/* Transfer Stock Modal */}
       <Modal open={transferModalOpen} onClose={() => setTransferModalOpen(false)} title="Transfer Stock" size="md">
         <form onSubmit={handleExecuteTransfer} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">Product ID</label>
-            <input required value={transferForm.productId} onChange={(e) => setTransferForm({ ...transferForm, productId: e.target.value })} placeholder="Enter product UUID" className="input" />
-          </div>
+          <ProductPicker
+            label="Product"
+            required
+            products={productList}
+            value={transferForm.productId}
+            onChange={(productId) => setTransferForm({ ...transferForm, productId })}
+          />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-ink-300 mb-1">From Warehouse</label>
@@ -381,10 +397,13 @@ export default function AdminInventory() {
       {/* Receive Stock Modal */}
       <Modal open={receiveModalOpen} onClose={() => setReceiveModalOpen(false)} title="Receive Stock" size="md">
         <form onSubmit={handleReceiveStock} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">Product ID</label>
-            <input required value={receiveForm.productId} onChange={(e) => setReceiveForm({ ...receiveForm, productId: e.target.value })} placeholder="Enter product UUID" className="input" />
-          </div>
+          <ProductPicker
+            label="Product"
+            required
+            products={productList}
+            value={receiveForm.productId}
+            onChange={(productId) => setReceiveForm({ ...receiveForm, productId })}
+          />
           <div>
             <label className="block text-xs font-medium text-ink-300 mb-1">Location Type</label>
             <select value={receiveForm.isWarehouse ? 'wh' : 'br'} onChange={(e) => setReceiveForm({ ...receiveForm, isWarehouse: e.target.value === 'wh', locationId: '' })} className="input">
@@ -414,10 +433,13 @@ export default function AdminInventory() {
       {/* Adjust Stock Modal */}
       <Modal open={adjustModalOpen} onClose={() => setAdjustModalOpen(false)} title="Adjust Stock" size="md">
         <form onSubmit={handleAdjustStock} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">Product ID</label>
-            <input required value={adjustForm.productId} onChange={(e) => setAdjustForm({ ...adjustForm, productId: e.target.value })} placeholder="Enter product UUID" className="input" />
-          </div>
+          <ProductPicker
+            label="Product"
+            required
+            products={productList}
+            value={adjustForm.productId}
+            onChange={(productId) => setAdjustForm({ ...adjustForm, productId })}
+          />
           <div>
             <label className="block text-xs font-medium text-ink-300 mb-1">Location Type</label>
             <select value={adjustForm.isWarehouse ? 'wh' : 'br'} onChange={(e) => setAdjustForm({ ...adjustForm, isWarehouse: e.target.value === 'wh', locationId: '' })} className="input">
@@ -461,7 +483,7 @@ export default function AdminInventory() {
           <div className="space-y-4">
             <p className="text-ink-300">Mark this <span className="text-gold-300">{selectedAlert.alert_type}</span> alert as resolved?</p>
             <p className="text-sm text-ink-400">{selectedAlert.message}</p>
-            <button onClick={() => resolveAlert(selectedAlert.id)} className="btn-primary w-full py-2.5">Resolve Alert</button>
+            {editable && <button onClick={() => resolveAlert(selectedAlert.id)} className="btn-primary w-full py-2.5">Resolve Alert</button>}
           </div>
         )}
       </Modal>

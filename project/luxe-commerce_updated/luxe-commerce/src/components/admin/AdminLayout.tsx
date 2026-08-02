@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, FolderTree, Users, Boxes, Building2,
@@ -7,7 +7,6 @@ import {
   RotateCcw, ClipboardCheck, Lightbulb, Lock, Shield,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 const nav = [
@@ -15,9 +14,9 @@ const nav = [
   {
     group: 'Commerce', items: [
       { to: '/admin/orders', label: 'Orders', icon: ShoppingCart, permission: 'orders.manage' },
-      { to: '/admin/returns-refunds', label: 'Returns & Refunds', icon: RotateCcw, permission: 'orders.manage' },
+      { to: '/admin/returns-refunds', label: 'Returns & Refunds', icon: RotateCcw, permission: 'returns_refunds.manage' },
       { to: '/admin/products', label: 'Products', icon: Package, permission: 'products.manage' },
-      { to: '/admin/categories', label: 'Categories', icon: FolderTree, permission: 'products.manage' },
+      { to: '/admin/categories', label: 'Categories', icon: FolderTree, permission: 'categories.manage' },
       { to: '/admin/customers', label: 'Customers', icon: Users, permission: 'customers.manage' },
     ],
   },
@@ -57,62 +56,22 @@ const nav = [
       { to: '/admin/settings', label: 'Settings', icon: Settings, permission: 'settings.manage' },
       { to: '/admin/content', label: 'Website Content', icon: FileText, permission: 'content.manage' },
       { to: '/admin/roles', label: 'Roles', icon: ShieldCheck, permission: 'roles.manage' },
-      { to: '/admin/permissions', label: 'Permissions', icon: KeyRound, permission: 'permissions.manage' },
+      { to: '/admin/permissions', label: 'Access Control', icon: KeyRound, permission: 'permissions.manage' },
       { to: '/admin/audit-logs', label: 'Audit Logs', icon: ScrollText, permission: 'audit_logs.view' },
     ],
   },
 ];
 
-// Define allowed paths or rules for every specific role in your system
-const ROLE_PERMISSIONS: Record<string, string[]> = {
-  warehouse_manager: [
-    '/admin',
-    '/admin/inventory',
-    '/admin/inventory-timeline',
-    '/admin/cycle-counts',
-    '/admin/stock-transfers',
-    '/admin/warehouses',
-  ],
-  branch_manager: [
-    '/admin',
-    '/admin/orders',
-    '/admin/products',
-    '/admin/customers',
-    '/admin/inventory',
-  ],
-  // Add any other custom roles here easily!
-};
-
 export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, canView } = useAuth();
   const navigate = useNavigate();
-  const [userPermissions, setUserPermissions] = useState<string[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase.rpc('get_employee_permissions');
-      if (!cancelled) setUserPermissions((data as string[]) ?? []);
-    })();
-    return () => { cancelled = true; };
-  }, [user?.id]);
-
-  const hasPermission = (item: any) => {
-    const role = (profile?.role || '').toLowerCase().trim().replace(/[-\s]/g, '_');
-    
-    // 1. Full access roles
-    const isAdmin = ['super_admin', 'company_owner', 'admin'].includes(role);
-    if (isAdmin) return true;
-
-    // 2. Check if the role exists in our custom mappings list
-    if (ROLE_PERMISSIONS[role]) {
-      return ROLE_PERMISSIONS[role].includes(item.to);
-    }
-
-    // 3. Fallback to database permission keys for any other role
-    return !item.permission || userPermissions.includes(item.permission);
-  };
+  // Nav visibility is entirely driven by the role \u2194 permission grants managed
+  // on the Access Control page (Administration > Access Control) — no
+  // hardcoded per-role path lists here. A superadmin can change what any
+  // custom role sees without touching code.
+  const hasPermission = (item: { permission?: string }) => !item.permission || canView(item.permission);
 
   const roleLabel = profile?.role ? profile.role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Administrator';
 

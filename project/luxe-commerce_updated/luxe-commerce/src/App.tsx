@@ -60,6 +60,7 @@ const AdminReports = lazy(() => import('@/pages/admin/AdminReports'));
 const AdminAnalytics = lazy(() => import('@/pages/admin/AdminAnalytics'));
 const AdminNotifications = lazy(() => import('@/pages/admin/AdminNotifications'));
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'));
+const AdminContent = lazy(() => import('@/pages/admin/AdminContent'));
 const AdminRoles = lazy(() => import('@/pages/admin/AdminRoles'));
 const AdminPermissions = lazy(() => import('@/pages/admin/AdminPermissions'));
 const AdminAuditLogs = lazy(() => import('@/pages/admin/AdminAuditLogs'));
@@ -116,12 +117,12 @@ export default function App() {
 
                   {/* Admin (protected — staff only) */}
                   <Route path="/admin" element={<ProtectedRoute requireStaff><AdminLayout /></ProtectedRoute>}>
-                    <Route index element={<AdminDashboard />} />
-                    <Route path="orders" element={<AdminOrders />} />
-                    <Route path="returns-refunds" element={<AdminReturnsRefunds />} />
-                    <Route path="products" element={<AdminProducts />} />
-                    <Route path="categories" element={<AdminCategories />} />
-                    <Route path="customers" element={<AdminCustomers />} />
+                    <Route index element={<PermissionRoute permission="dashboard.view"><AdminDashboard /></PermissionRoute>} />
+                    <Route path="orders" element={<PermissionRoute permission="orders.manage"><AdminOrders /></PermissionRoute>} />
+                    <Route path="returns-refunds" element={<PermissionRoute permission="returns_refunds.manage"><AdminReturnsRefunds /></PermissionRoute>} />
+                    <Route path="products" element={<PermissionRoute permission="products.manage"><AdminProducts /></PermissionRoute>} />
+                    <Route path="categories" element={<PermissionRoute permission="categories.manage"><AdminCategories /></PermissionRoute>} />
+                    <Route path="customers" element={<PermissionRoute permission="customers.manage"><AdminCustomers /></PermissionRoute>} />
                     <Route path="inventory" element={<PermissionRoute permission="inventory.valuation"><AdminInventory /></PermissionRoute>} />
                     <Route path="inventory-timeline" element={<PermissionRoute permission="inventory.valuation"><AdminInventoryTimeline /></PermissionRoute>} />
                     <Route path="stock-transfers" element={<PermissionRoute permission="inventory.transfer"><AdminStockTransfers /></PermissionRoute>} />
@@ -131,16 +132,17 @@ export default function App() {
                     <Route path="security" element={<PermissionRoute permission="reports.financial"><AdminSecurity /></PermissionRoute>} />
                     <Route path="branches" element={<PermissionRoute permission="branches.manage"><AdminBranches /></PermissionRoute>} />
                     <Route path="warehouses" element={<PermissionRoute permission="warehouses.manage"><AdminWarehouses /></PermissionRoute>} />
-                    <Route path="employees" element={<PermissionRoute allowedRoles={['super_admin', 'admin', 'company_owner']}><AdminEmployees /></PermissionRoute>} />
+                    <Route path="employees" element={<PermissionRoute permission="employees.manage"><AdminEmployees /></PermissionRoute>} />
                     <Route path="suppliers" element={<PermissionRoute permission="suppliers.manage"><AdminSuppliers /></PermissionRoute>} />
                     <Route path="purchase-orders" element={<PermissionRoute permission="purchase_orders.manage"><AdminPurchaseOrders /></PermissionRoute>} />
                     <Route path="reports" element={<PermissionRoute permission="reports.financial"><AdminReports /></PermissionRoute>} />
-                    <Route path="analytics" element={<AdminAnalytics />} />
+                    <Route path="analytics" element={<PermissionRoute permission="reports.financial"><AdminAnalytics /></PermissionRoute>} />
                     <Route path="notifications" element={<AdminNotifications />} />
-                    <Route path="settings" element={<AdminSettings />} />
+                    <Route path="settings" element={<PermissionRoute permission="settings.manage"><AdminSettings /></PermissionRoute>} />
+                    <Route path="content" element={<PermissionRoute permission="content.manage"><AdminContent /></PermissionRoute>} />
                     <Route path="roles" element={<PermissionRoute permission="roles.manage"><AdminRoles /></PermissionRoute>} />
                     <Route path="permissions" element={<PermissionRoute permission="permissions.manage"><AdminPermissions /></PermissionRoute>} />
-                    <Route path="audit-logs" element={<AdminAuditLogs />} />
+                    <Route path="audit-logs" element={<PermissionRoute permission="audit_logs.view"><AdminAuditLogs /></PermissionRoute>} />
                   </Route>
                 </Routes>
               </Suspense>

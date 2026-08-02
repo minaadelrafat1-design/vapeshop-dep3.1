@@ -6,11 +6,14 @@ import { DataTable, StatCard } from '@/components/admin/AdminComponents';
 import { Badge, Skeleton, EmptyState } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { InventoryReservation, Product, Warehouse, Branch } from '@/types';
 import { formatDateTime } from '@/lib/utils';
 
 export default function AdminInventoryReservations() {
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('inventory.valuation');
   const [reservations, setReservations] = useState<
     (InventoryReservation & { product?: Product; warehouse?: Warehouse; branch?: Branch })[]
   >([]);
@@ -154,7 +157,7 @@ export default function AdminInventoryReservations() {
               key: 'actions',
               label: '',
               render: (r) =>
-                r.status === 'active' ? (
+                r.status === 'active' && editable ? (
                   <Button size="sm" variant="ghost" onClick={() => release(r.id)}>
                     <Unlock className="w-4 h-4" /> Release
                   </Button>

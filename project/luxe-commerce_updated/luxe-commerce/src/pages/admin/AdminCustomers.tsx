@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { Customer } from '@/types';
 import { formatDate } from '@/lib/utils';
 
@@ -23,6 +24,8 @@ interface CustomerForm {
 export default function AdminCustomers() {
   const { rows, loading, update } = useAdminTable<Customer>('customers', 'created_at', false);
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('customers.manage');
   const [query, setQuery] = useState('');
   const filtered = rows.filter((c) => [c.first_name, c.last_name, c.phone].join(' ').toLowerCase().includes(query.toLowerCase()));
 
@@ -84,7 +87,7 @@ export default function AdminCustomers() {
           { key: 'marketing_opt_in', label: 'Marketing', render: (c) => <Badge color={c.marketing_opt_in ? 'accent' : 'neutral'}>{c.marketing_opt_in ? 'Opted in' : 'Out'}</Badge> },
           { key: 'created_at', label: 'Joined', render: (c) => <span className="text-ink-300">{formatDate(c.created_at)}</span> },
           { key: 'actions', label: '', render: (c) => (
-            <button onClick={() => openEdit(c)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
+            <>{editable && <button onClick={() => openEdit(c)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>}</>
           ) },
         ]}
       />

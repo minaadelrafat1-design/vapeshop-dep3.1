@@ -48,8 +48,8 @@ const STAFF_ROLES = [
 export default function AdminEmployees() {
   const { rows, loading, remove, update, refetch } = useAdminTable<Employee>('employees', 'created_at', false);
   const { toast } = useToast();
-  const { profile, refreshProfile } = useAuth();
-  const canManage = canManageEmployees(profile?.role);
+  const { profile, refreshProfile, canEdit } = useAuth();
+  const canManage = canManageEmployees(profile?.role) || canEdit('employees.manage');
   const assignableRoles = STAFF_ROLES.filter((r) => canAssignRole(profile?.role, r.value));
   const [branches, setBranches] = useState<Branch[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -142,35 +142,39 @@ export default function AdminEmployees() {
     setDetailLoading(false);
   };
 
+  // Syncs profiles.role for an employee through the admin-sync-employee-role
+  // edge function. This MUST go through the edge function (service role)
+  // rather than a direct client update: migration 0015's
+  // trg_prevent_role_self_escalation trigger rejects any client-side write to
+  // profiles.role/status, so a plain
+  // `supabase.from('profiles').update({ role })` silently fails to change
+  // anything while still "succeeding" from the caller's point of view.
+  // employee_roles is unaffected — that table is written directly by the
+  // caller and isn't blocked by anything.
+  const syncEmployeeRole = async (employeeId: string, roleName: string): Promise<string | null> => {
+    const { data, error } = await supabase.functions.invoke('admin-sync-employee-role', {
+      body: { employee_id: employeeId, role: roleName },
+    });
+    if (error) return error.message ?? 'Failed to update role';
+    if (data?.error) return data.error as string;
+    return null;
+  };
+
   const assignRole = async (employeeId: string, roleName: string) => {
     const targetRole = roles.find((r) => r.name === roleName);
     if (!targetRole) return;
-    
+
     const { error } = await supabase.from('employee_roles').insert({
       employee_id: employeeId,
       role_id: targetRole.id,
     });
-    
+
     if (error) {
       if (error.code === '23505') toast('Role already assigned', 'info');
       else toast(error.message, 'error');
     } else {
-      const targetEmp = rows.find(emp => emp.id === employeeId);
-      if (targetEmp?.email) {
-        if (targetEmp.email.toLowerCase() === profile?.email?.toLowerCase() && profile?.id) {
-          await supabase.from('profiles').update({ role: roleName }).eq('id', profile.id);
-        } else {
-          const { data: matchedProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('email', targetEmp.email.trim())
-            .maybeSingle();
-
-          if (matchedProfile) {
-            await supabase.from('profiles').update({ role: roleName }).eq('id', matchedProfile.id);
-          }
-        }
-      }
+      const syncError = await syncEmployeeRole(employeeId, roleName);
+      if (syncError) toast(syncError, 'error');
 
       await refreshProfile();
       toast(`Role "${roleName}" assigned`, 'success');
@@ -234,6 +238,9 @@ export default function AdminEmployees() {
 
       const currentRoles = employeeRoles[editing.id] ?? [];
       if (form.role && !currentRoles.includes(form.role)) {
+        // 1) employee_roles: this write was never blocked — RLS/the hierarchy
+        //    trigger already allow it for a sufficiently-ranked authenticated
+        //    caller — so it's kept exactly as before.
         for (const oldRole of currentRoles) {
           const rObj = roles.find((r) => r.name === oldRole);
           if (rObj) {
@@ -244,22 +251,21 @@ export default function AdminEmployees() {
         if (newObj) {
           await supabase.from('employee_roles').insert({ employee_id: editing.id, role_id: newObj.id });
         }
-      }
 
-      const targetEmp = rows.find(emp => emp.id === editing.id);
-      if (targetEmp?.email) {
-        if (targetEmp.email.toLowerCase() === profile?.email?.toLowerCase() && profile?.id) {
-          await supabase.from('profiles').update({ role: form.role }).eq('id', profile.id);
-        } else {
-          const { data: matchedProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('email', targetEmp.email.trim())
-            .maybeSingle();
-
-          if (matchedProfile) {
-            await supabase.from('profiles').update({ role: form.role }).eq('id', matchedProfile.id);
-          }
+        // 2) profiles.role: this is the piece that was actually broken.
+        //    Migration 0015's trg_prevent_role_self_escalation rejects any
+        //    client-side write to profiles.role/status, so the previous
+        //    direct `supabase.from('profiles').update({ role })` (matched by
+        //    lower-cased email text, no less) silently did nothing. Routing
+        //    through the service-role edge function is the only way past
+        //    that trigger, and is also what actually drives is_staff(),
+        //    current_staff_rank() and the has_permission() admin bypass —
+        //    i.e. what the employee can actually do.
+        const syncError = await syncEmployeeRole(editing.id, form.role);
+        if (syncError) {
+          toast(syncError, 'error');
+          setSaving(false);
+          return;
         }
       }
 
@@ -360,8 +366,8 @@ export default function AdminEmployees() {
             render: (e) => (
               <div className="flex gap-2">
                 <button onClick={() => viewDetail(e)} className="text-ink-400 hover:text-gold-300" title="View"><Eye className="w-4 h-4" /></button>
-                <button onClick={() => openEdit(e)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => handleDelete(e)} className="text-ink-400 hover:text-error-500"><Trash className="w-4 h-4" /></button>
+                {canManage && <button onClick={() => openEdit(e)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>}
+                {canManage && <button onClick={() => handleDelete(e)} className="text-ink-400 hover:text-error-500"><Trash className="w-4 h-4" /></button>}
               </div>
             ),
           },

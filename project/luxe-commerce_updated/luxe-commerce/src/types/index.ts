@@ -38,6 +38,7 @@ export interface Product {
   cost: number | null;
   sku: string | null;
   barcode: string | null;
+  qr_code: string | null;
   stock: number;
   low_stock_threshold: number;
   weight: number | null;
@@ -82,6 +83,8 @@ export interface ProductVariant {
   price: number;
   stock: number;
   sku: string | null;
+  barcode: string | null;
+  qr_code: string | null;
   created_at: string;
 }
 

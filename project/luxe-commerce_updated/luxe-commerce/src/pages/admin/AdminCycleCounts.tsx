@@ -8,11 +8,14 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Select, Input } from '@/components/ui/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { CycleCount, CycleCountItem, Product, Warehouse, Branch } from '@/types';
 import { formatDateTime, formatCurrency } from '@/lib/utils';
 
 export default function AdminCycleCounts() {
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('inventory.valuation');
   const [counts, setCounts] = useState<CycleCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -108,7 +111,7 @@ export default function AdminCycleCounts() {
 
   return (
     <div>
-      <AdminPageHeader title="Cycle Counts" subtitle="Physical stock counting and reconciliation" action={<Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" /> New Count</Button>} />
+      <AdminPageHeader title="Cycle Counts" subtitle="Physical stock counting and reconciliation" action={editable ? <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" /> New Count</Button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />) : (
@@ -122,7 +125,7 @@ export default function AdminCycleCounts() {
       </div>
 
       {loading ? <Skeleton className="h-64" /> : counts.length === 0 ? (
-        <EmptyState icon={<ClipboardCheck className="w-10 h-10" />} title="No cycle counts yet" description="Create a cycle count to start physical stock reconciliation." action={<Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" /> New Count</Button>} />
+        <EmptyState icon={<ClipboardCheck className="w-10 h-10" />} title="No cycle counts yet" description="Create a cycle count to start physical stock reconciliation." action={editable ? <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" /> New Count</Button> : undefined} />
       ) : (
         <DataTable<CycleCount>
           rows={counts}
@@ -177,7 +180,7 @@ export default function AdminCycleCounts() {
                 <Badge color={selected.status === 'completed' ? 'success' : 'warning'}>{selected.status.replace(/_/g, ' ')}</Badge>
                 <Badge color="neutral">{selected.count_type}</Badge>
               </div>
-              {selected.status === 'in_progress' && (
+              {selected.status === 'in_progress' && editable && (
                 <Button onClick={completeCount} size="sm"><CheckCircle2 className="w-4 h-4" /> Complete & Reconcile</Button>
               )}
             </div>

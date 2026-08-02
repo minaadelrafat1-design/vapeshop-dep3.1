@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAdminTable } from '@/hooks/useAdminTable';
@@ -9,9 +9,12 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select, Textarea } from '@/components/ui/Input';
+import { ProductIdentifiers } from '@/components/admin/ProductIdentifiers';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { Product } from '@/types';
 import { formatCurrency, slugify } from '@/lib/utils';
+import { searchProducts } from '@/lib/productSearch';
 
 interface ProductForm {
   name: string;
@@ -53,18 +56,44 @@ const emptyForm: ProductForm = {
 };
 
 export default function AdminProducts() {
-  const { rows, loading, remove, insert, update } = useAdminTable<Product>('products', 'created_at', false);
+  const { rows, loading, remove, insert, update, refetch } = useAdminTable<Product>('products', 'created_at', false);
   const { categories } = useCategories();
   const { brands } = useBrands();
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('products.manage');
   const [query, setQuery] = useState('');
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
-  const filtered = rows.filter((p) => [p.name, p.sku].join(' ').toLowerCase().includes(query.toLowerCase()));
+  // Keep the open modal's identifiers in sync after a regenerate (or any
+  // background refetch) updates the underlying row.
+  useEffect(() => {
+    if (!editing) return;
+    const fresh = rows.find((r) => r.id === editing.id);
+    if (fresh && (fresh.barcode !== editing.barcode || fresh.qr_code !== editing.qr_code || fresh.sku !== editing.sku)) {
+      setEditing(fresh);
+    }
+  }, [rows, editing]);
+
+  const handleRegenerateIdentifiers = async () => {
+    if (!editing) return;
+    setRegenerating(true);
+    const { error } = await update(editing.id, { barcode: null, qr_code: null } as Partial<Product>);
+    if (error) {
+      toast(error, 'error');
+    } else {
+      await refetch();
+      toast('Barcode & QR code regenerated', 'success');
+    }
+    setRegenerating(false);
+  };
+
+  const filtered = searchProducts(rows, query);
 
   const openAdd = () => {
     setEditing(null);
@@ -153,11 +182,11 @@ export default function AdminProducts() {
 
   return (
     <div>
-      <AdminPageHeader title="Products" subtitle={`${rows.length} products in catalog`} action={<Button onClick={openAdd}><Plus className="w-4 h-4" /> Add Product</Button>} />
+      <AdminPageHeader title="Products" subtitle={`${rows.length} products in catalog`} action={editable ? <Button onClick={openAdd}><Plus className="w-4 h-4" /> Add Product</Button> : undefined} />
       <div className="max-w-md mb-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products…" className="input pl-11" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by SKU or product name…" className="input pl-11" />
         </div>
       </div>
       <DataTable<Product>
@@ -180,8 +209,8 @@ export default function AdminProducts() {
           { key: 'actions', label: '', render: (p) => (
             <div className="flex gap-2">
               <Link to={`/product/${p.slug}`} className="text-ink-400 hover:text-gold-300"><Eye className="w-4 h-4" /></Link>
-              <button onClick={() => openEdit(p)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
-              <button onClick={async () => { const { error } = await remove(p.id); if (error) toast(error, 'error'); else toast('Product deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>
+              {editable && <button onClick={() => openEdit(p)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>}
+              {editable && <button onClick={async () => { const { error } = await remove(p.id); if (error) toast(error, 'error'); else toast('Product deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>}
             </div>
           ) },
         ]}
@@ -191,9 +220,22 @@ export default function AdminProducts() {
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
           <div className="grid sm:grid-cols-2 gap-4">
             <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <Input label="SKU" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+            <Input label="SKU" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} hint="Leave blank to auto-generate a unique SKU" />
           </div>
           <Input label="Slug" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} hint="Leave blank to auto-generate from the name" />
+
+          <div>
+            <p className="label mb-1.5">Identification</p>
+            <ProductIdentifiers
+              sku={editing?.sku}
+              barcode={editing?.barcode}
+              qrCode={editing?.qr_code}
+              isNew={!editing}
+              onRegenerate={handleRegenerateIdentifiers}
+              regenerating={regenerating}
+              canManage={editable}
+            />
+          </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <Select label="Category" value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
               <option value="">— None —</option>

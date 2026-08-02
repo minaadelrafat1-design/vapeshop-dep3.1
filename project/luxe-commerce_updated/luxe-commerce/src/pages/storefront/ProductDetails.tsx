@@ -15,6 +15,8 @@ import { productImage } from '@/lib/images';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { ProductCard } from '@/components/storefront/ProductCard';
+import { BarcodeImage } from '@/components/admin/BarcodeImage';
+import { QrCodeImage } from '@/components/admin/QrCodeImage';
 
 export default function ProductDetails() {
   const { slug } = useParams();
@@ -206,19 +208,38 @@ export default function ProductDetails() {
           </div>
         )}
         {tab === 'specs' && (
-          <div className="grid sm:grid-cols-2 gap-3 max-w-2xl">
-            {[
-              ['SKU', product.sku ?? '—'],
-              ['Nicotine strength', product.nicotine_strength ?? '—'],
-              ['Weight', product.weight ? `${product.weight}g` : '—'],
-              ['Stock', String(product.stock)],
-              ['Tags', product.tags.join(', ') || '—'],
-            ].map(([k, v]) => (
-              <div key={k} className="glass rounded-xl px-4 py-3 flex justify-between">
-                <span className="text-ink-400 text-sm">{k}</span>
-                <span className="text-ink-100 text-sm font-medium">{v}</span>
+          <div className="max-w-2xl">
+            <div className="grid sm:grid-cols-2 gap-3">
+              {[
+                ['SKU', product.sku ?? '—'],
+                ['Barcode', product.barcode ?? '—'],
+                ['Nicotine strength', product.nicotine_strength ?? '—'],
+                ['Weight', product.weight ? `${product.weight}g` : '—'],
+                ['Stock', String(product.stock)],
+                ['Tags', product.tags.join(', ') || '—'],
+              ].map(([k, v]) => (
+                <div key={k} className="glass rounded-xl px-4 py-3 flex justify-between">
+                  <span className="text-ink-400 text-sm">{k}</span>
+                  <span className="text-ink-100 text-sm font-medium">{v}</span>
+                </div>
+              ))}
+            </div>
+            {(product.barcode || product.qr_code) && (
+              <div className="grid sm:grid-cols-2 gap-4 mt-4">
+                {product.barcode && (
+                  <div className="glass rounded-xl p-4 flex flex-col items-center gap-2">
+                    <p className="text-xs text-ink-400 self-start">Barcode</p>
+                    <BarcodeImage value={product.barcode} />
+                  </div>
+                )}
+                {product.qr_code && (
+                  <div className="glass rounded-xl p-4 flex flex-col items-center gap-2">
+                    <p className="text-xs text-ink-400 self-start">QR Code</p>
+                    <QrCodeImage value={product.qr_code} />
+                  </div>
+                )}
               </div>
-            ))}
+            )}
           </div>
         )}
         {tab === 'reviews' && (

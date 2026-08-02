@@ -1,21 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Search, Eye, Truck, CheckCircle2, XCircle, RotateCcw, 
-  DollarSign, Clock, MapPin, User, Mail, Phone, Edit3, RefreshCw 
+  DollarSign, Clock, MapPin, User, Mail, Phone, Edit3, RefreshCw,
+  ScanLine, Plus, Minus, Trash2, ShoppingCart, WifiOff, UploadCloud,
+  Printer, FileText,
 } from 'lucide-react';
 import { useAdminTable } from '@/hooks/useAdminTable';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
-import { queueOfflineSale, syncOfflineSales } from '@/lib/offlineSync';
+import { queueOfflineSale, syncOfflineSales, getPendingOfflineCount } from '@/lib/offlineSync';
 import { AdminPageHeader } from '@/components/admin/AdminLayout';
 import { DataTable, StatCard } from '@/components/admin/AdminComponents';
 import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
-import { Select } from '@/components/ui/Input';
+import { Select, Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderTimelineEntry, OrderRefund, Branch } from '@/types';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
+import {
+  getOrCreateInvoice, resolveCustomerInfo, resolveCashierInfo, resolvePaymentMethod, printSalesDocument,
+} from '@/lib/salesDocuments';
+
+interface CartLine {
+  key: string;
+  product_id: string;
+  variant_id: string | null;
+  name: string;
+  sku: string | null;
+  unit_price: number;
+  quantity: number;
+}
+
+interface ScannedProduct {
+  product_id: string;
+  variant_id: string | null;
+  name: string;
+  sku: string | null;
+  barcode: string | null;
+  price: number;
+  is_variant: boolean;
+}
 
 const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'] as const;
 
@@ -32,6 +57,14 @@ export default function AdminOrders() {
   const [branches, setBranches] = useState<Record<string, Branch>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [printingKind, setPrintingKind] = useState<'receipt' | 'invoice' | null>(null);
+
+  // Directory of customer_id -> display name/email/phone. Orders don't
+  // carry these denormalized fields on the `orders` table itself, so the
+  // "Customer" column/search/detail view resolve them from `customers`
+  // (joined to `profiles` for email) once up front, the same way branches
+  // are loaded in full below.
+  const [customerDirectory, setCustomerDirectory] = useState<Record<string, { name: string; email: string | null; phone: string | null }>>({});
 
   // Refund Modal State
   const [refundModal, setRefundModal] = useState(false);
@@ -42,24 +75,46 @@ export default function AdminOrders() {
   const [trackingModal, setTrackingModal] = useState(false);
   const [carrier, setCarrier] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
+
+  // POS / New Sale Panel State
+  const [posOpen, setPosOpen] = useState(false);
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [posBranchId, setPosBranchId] = useState('');
+  const [posCustomerEmail, setPosCustomerEmail] = useState('');
+  const [posCustomerId, setPosCustomerId] = useState<string | null>(null);
+  const [posDiscount, setPosDiscount] = useState('0');
+  const [posTax, setPosTax] = useState('0');
+  const [posPaymentMethod, setPosPaymentMethod] = useState('cash');
+  const [posProcessing, setPosProcessing] = useState(false);
+  const [manualCode, setManualCode] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
  // Generic POS / Manual Order Checkout Handler (Supports Offline Sync & Supabase RPC)
 const handleCheckout = async (
-  items: Array<{ product_id: string; variant_id?: string; quantity: number; unit_price: number }>,
+  items: Array<{ product_id: string; variant_id?: string | null; quantity: number; unit_price: number }>,
   branchId?: string,
   customerId?: string | null,
   discountAmount: number = 0,
   taxAmount: number = 0,
   paymentMethod: string = 'cash'
-) => {
+): Promise<boolean> => {
   if (!items || items.length === 0) {
     toast('No items to checkout', 'error');
-    return;
+    return false;
+  }
+
+  const targetBranch = branchId || Object.keys(branches)[0] || '';
+  if (!targetBranch) {
+    toast('Select a branch before checking out', 'error');
+    return false;
   }
 
   const { data: { user } } = await supabase.auth.getUser();
 
   const payload = {
-    p_branch_id: branchId || Object.keys(branches)[0] || '',
+    p_branch_id: targetBranch,
     p_cashier_id: user?.id || '',
     p_customer_id: customerId || null,
     p_items: items.map((item) => ({
@@ -80,10 +135,12 @@ const handleCheckout = async (
     try {
       await queueOfflineSale(payload);
       toast('Offline mode active: Order queued locally! It will sync when connected.', 'warning');
+      refreshPendingOfflineCount();
+      return true;
     } catch (err) {
       toast('Failed to save offline sale locally', 'error');
+      return false;
     }
-    return;
   }
 
   // 2. Online Mode: Execute Atomic RPC Checkout
@@ -92,43 +149,199 @@ const handleCheckout = async (
 
     if (error) {
       toast(`Checkout error: ${error.message}`, 'error');
-      return;
+      return false;
     }
 
     toast(`Order #${data.order_number} successfully processed!`, 'success');
     refetch(); // Reload orders table
+    return true;
   } catch (err: any) {
     toast(`Unexpected checkout error: ${err.message}`, 'error');
+    return false;
   }
 };
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from('branches').select('*');
-      setBranches(Object.fromEntries((data ?? []).map((b) => [b.id, b])));
+      const map = Object.fromEntries((data ?? []).map((b) => [b.id, b]));
+      setBranches(map);
+      setPosBranchId((prev) => prev || Object.keys(map)[0] || '');
     })();
   }, []);
-// 1. Listen for standard USB/Bluetooth barcode scanner input
-useBarcodeScanner({
-  onScan: async (scannedCode) => {
-    // Look up product by barcode, QR code, or SKU via Supabase RPC
-    const { data, error } = await supabase.rpc('lookup_product_by_code', {
-      p_code: scannedCode,
-    });
 
+  useEffect(() => {
+    (async () => {
+      const { data: customersData } = await supabase.from('customers').select('id, first_name, last_name, phone, user_id');
+      const userIds = (customersData ?? []).map((c) => c.user_id).filter((id): id is string => !!id);
+      const { data: profilesData } = userIds.length
+        ? await supabase.from('profiles').select('id, email').in('id', userIds)
+        : { data: [] as { id: string; email: string }[] };
+      const emailByUser = Object.fromEntries((profilesData ?? []).map((p) => [p.id, p.email]));
+      const map = Object.fromEntries(
+        (customersData ?? []).map((c) => [
+          c.id,
+          {
+            name: [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Guest',
+            email: c.user_id ? (emailByUser[c.user_id] ?? null) : null,
+            phone: c.phone ?? null,
+          },
+        ]),
+      );
+      setCustomerDirectory(map);
+    })();
+  }, []);
+
+  const refreshPendingOfflineCount = useCallback(() => {
+    getPendingOfflineCount().then(setPendingOfflineCount).catch(() => {});
+  }, []);
+
+  // Track connectivity + queued offline sales so cashiers can see when a
+  // sale was queued locally and trigger a manual sync once back online.
+  useEffect(() => {
+    refreshPendingOfflineCount();
+    const handleOnline = () => { setIsOnline(true); refreshPendingOfflineCount(); };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    const interval = setInterval(refreshPendingOfflineCount, 15000);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
+    };
+  }, [refreshPendingOfflineCount]);
+
+  const handleManualSync = async () => {
+    const result = await syncOfflineSales();
+    if (result.synced > 0) toast(`Synced ${result.synced} offline sale(s)`, 'success');
+    if (result.failed > 0) toast(`${result.failed} offline sale(s) failed to sync`, 'error');
+    refreshPendingOfflineCount();
+    refetch();
+  };
+
+  // Adds a scanned/looked-up product to the active cart, merging quantity
+  // if the same product+variant is already present.
+  const addToCart = (item: ScannedProduct) => {
+    const key = `${item.product_id}:${item.variant_id ?? ''}`;
+    setCart((prev) => {
+      const existing = prev.find((l) => l.key === key);
+      if (existing) {
+        return prev.map((l) => (l.key === key ? { ...l, quantity: l.quantity + 1 } : l));
+      }
+      return [
+        ...prev,
+        {
+          key,
+          product_id: item.product_id,
+          variant_id: item.variant_id,
+          name: item.name,
+          sku: item.sku,
+          unit_price: Number(item.price),
+          quantity: 1,
+        },
+      ];
+    });
+    toast(`Added: ${item.name} (${formatCurrency(item.price)})`, 'success');
+  };
+
+  const lookupCode = async (code: string): Promise<ScannedProduct | null> => {
+    const { data, error } = await supabase.rpc('lookup_product_by_code', { p_code: code });
     if (error || !data || data.length === 0) {
-      toast(`No product found for barcode: ${scannedCode}`, 'error');
+      toast(`No product found for code: ${code}`, 'error');
+      return null;
+    }
+    const item = data[0];
+    return {
+      product_id: item.product_id,
+      variant_id: item.variant_id ?? null,
+      name: item.name,
+      sku: item.sku,
+      barcode: item.barcode,
+      price: Number(item.price),
+      is_variant: item.is_variant,
+    };
+  };
+
+  const handleManualLookup = async () => {
+    const code = manualCode.trim();
+    if (!code) return;
+    setLookingUp(true);
+    const item = await lookupCode(code);
+    setLookingUp(false);
+    if (item) {
+      addToCart(item);
+      setManualCode('');
+    }
+  };
+
+  const updateCartQty = (key: string, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((l) => (l.key === key ? { ...l, quantity: l.quantity + delta } : l))
+        .filter((l) => l.quantity > 0),
+    );
+  };
+
+  const removeCartLine = (key: string) => setCart((prev) => prev.filter((l) => l.key !== key));
+
+  const cartSubtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
+  const cartDiscount = Number(posDiscount) || 0;
+  const cartTax = Number(posTax) || 0;
+  const cartGrandTotal = Math.max(0, cartSubtotal - cartDiscount) + cartTax;
+
+  const lookupCustomerByEmail = async (email: string) => {
+    if (!email.trim()) { setPosCustomerId(null); return; }
+    const { data: profile } = await supabase.from('profiles').select('id').eq('email', email.trim()).maybeSingle();
+    if (!profile) { setPosCustomerId(null); toast('No customer found with that email — sale will be recorded as a walk-in', 'warning'); return; }
+    const { data: customer } = await supabase.from('customers').select('id').eq('user_id', profile.id).maybeSingle();
+    setPosCustomerId(customer?.id ?? null);
+    if (customer) toast('Customer found and linked to this sale', 'success');
+  };
+
+  const completeSale = async () => {
+    if (cart.length === 0) {
+      toast('Cart is empty', 'error');
       return;
     }
+    setPosProcessing(true);
+    const success = await handleCheckout(
+      cart.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity, unit_price: l.unit_price })),
+      posBranchId,
+      posCustomerId,
+      cartDiscount,
+      cartTax,
+      posPaymentMethod,
+    );
+    setPosProcessing(false);
+    if (success) {
+      setCart([]);
+      setPosDiscount('0');
+      setPosTax('0');
+      setPosCustomerEmail('');
+      setPosCustomerId(null);
+      setPosOpen(false);
+    }
+  };
 
-    const item = data[0];
-    toast(`Scanned: ${item.name} (${formatCurrency(item.price)})`, 'success');
-
-    // If an order detail modal is currently open or a checkout cart is active, 
-    // update your selection/cart here.
+// 1. Listen for standard USB/Bluetooth barcode scanner input (also reads QR
+// payloads — hardware scanners emit the same rapid keystroke pattern for
+// either symbology, and lookup_product_by_code() matches on barcode, sku,
+// or qr_code, so no separate QR code path is needed).
+useBarcodeScanner({
+  onScan: async (scannedCode) => {
+    const item = await lookupCode(scannedCode);
+    if (!item) return;
+    if (posOpen) {
+      addToCart(item);
+    } else {
+      toast(`Scanned: ${item.name} (${formatCurrency(item.price)}) — open "New Sale" to add it to a cart`, 'success');
+    }
   },
 });
   const filtered = rows.filter((o) => {
-    const matchesQuery = [o.order_number, o.status, o.source, o.customer_name ?? '', o.customer_email ?? '']
+    const info = o.customer_id ? customerDirectory[o.customer_id] : null;
+    const matchesQuery = [o.order_number, o.status, o.source, info?.name ?? '', info?.email ?? '']
       .join(' ')
       .toLowerCase()
       .includes(query.toLowerCase());
@@ -221,6 +434,33 @@ useBarcodeScanner({
     }
   };
 
+  // Prints a receipt or invoice for the currently-selected order. Both
+  // documents are generated on the fly from the order's live data plus
+  // the existing `invoices` record (created via the existing
+  // `generate_invoice` RPC if one doesn't exist yet) — nothing is stored
+  // separately, so the printed document always matches the order.
+  const handlePrint = async (kind: 'receipt' | 'invoice') => {
+    if (!selected) return;
+    setPrintingKind(kind);
+    try {
+      const [invoice, customer, cashier, paymentMethod] = await Promise.all([
+        getOrCreateInvoice(selected.id),
+        resolveCustomerInfo(selected),
+        resolveCashierInfo(selected),
+        resolvePaymentMethod(selected),
+      ]);
+      const branch = selected.branch_id ? (branches[selected.branch_id] ?? null) : null;
+      const opened = printSalesDocument({ kind, order: selected, items, invoice, branch, customer, cashier, paymentMethod });
+      if (!opened) {
+        toast('Please allow pop-ups to print this document', 'error');
+      }
+    } catch (err: any) {
+      toast(`Could not generate ${kind}: ${err.message ?? 'Unknown error'}`, 'error');
+    } finally {
+      setPrintingKind(null);
+    }
+  };
+
   const updateTracking = async () => {
     if (!selected) return;
     setUpdating(true);
@@ -256,7 +496,25 @@ useBarcodeScanner({
 
   return (
     <div>
-      <AdminPageHeader title="Orders" subtitle={`${rows.length} total orders recorded`} />
+      <AdminPageHeader
+        title="Orders"
+        subtitle={`${rows.length} total orders recorded`}
+        action={
+          <div className="flex items-center gap-2">
+            {!isOnline && (
+              <Badge color="warning" className="flex items-center gap-1"><WifiOff className="w-3 h-3" /> Offline</Badge>
+            )}
+            {pendingOfflineCount > 0 && (
+              <Button variant="secondary" size="sm" onClick={handleManualSync} title="Sync queued offline sales">
+                <UploadCloud className="w-3.5 h-3.5" /> Sync {pendingOfflineCount} pending
+              </Button>
+            )}
+            <Button onClick={() => setPosOpen(true)}>
+              <ScanLine className="w-4 h-4" /> New Sale (POS)
+            </Button>
+          </div>
+        }
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -311,12 +569,15 @@ useBarcodeScanner({
         rows={filtered}
         columns={[
           { key: 'order_number', label: 'Order #', render: (o) => <span className="font-mono text-gold-300 font-medium">{o.order_number}</span> },
-          { key: 'customer', label: 'Customer', render: (o) => (
-            <div>
-              <p className="text-sm font-medium text-ink-100">{o.customer_name ?? 'Guest'}</p>
-              <p className="text-xs text-ink-400">{o.customer_email ?? '—'}</p>
-            </div>
-          )},
+          { key: 'customer', label: 'Customer', render: (o) => {
+            const info = o.customer_id ? customerDirectory[o.customer_id] : null;
+            return (
+              <div>
+                <p className="text-sm font-medium text-ink-100">{info?.name ?? 'Guest'}</p>
+                <p className="text-xs text-ink-400">{info?.email ?? '—'}</p>
+              </div>
+            );
+          }},
           { key: 'source', label: 'Source', render: (o) => <Badge color={o.source === 'pos' ? 'accent' : 'neutral'}>{o.source === 'pos' ? 'Branch' : o.source}</Badge> },
           { key: 'placed_at', label: 'Date', render: (o) => <span className="text-ink-300 text-xs">{formatDateTime(o.placed_at)}</span> },
           { key: 'status', label: 'Status', render: (o) => <Badge color={o.status === 'delivered' ? 'success' : o.status === 'cancelled' ? 'error' : o.status === 'refunded' ? 'warning' : 'gold'}>{o.status}</Badge> },
@@ -345,9 +606,16 @@ useBarcodeScanner({
 
               <div className="glass rounded-xl p-4">
                 <p className="text-xs text-ink-500 uppercase mb-2">Customer</p>
-                <p className="text-sm font-semibold text-ink-100 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-gold-400" /> {selected.customer_name ?? 'Guest'}</p>
-                {selected.customer_email && <p className="text-xs text-ink-400 flex items-center gap-1.5 mt-1"><Mail className="w-3.5 h-3.5 text-ink-500" /> {selected.customer_email}</p>}
-                {selected.customer_phone && <p className="text-xs text-ink-400 flex items-center gap-1.5 mt-1"><Phone className="w-3.5 h-3.5 text-ink-500" /> {selected.customer_phone}</p>}
+                {(() => {
+                  const info = selected.customer_id ? customerDirectory[selected.customer_id] : null;
+                  return (
+                    <>
+                      <p className="text-sm font-semibold text-ink-100 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-gold-400" /> {info?.name ?? 'Guest'}</p>
+                      {info?.email && <p className="text-xs text-ink-400 flex items-center gap-1.5 mt-1"><Mail className="w-3.5 h-3.5 text-ink-500" /> {info.email}</p>}
+                      {info?.phone && <p className="text-xs text-ink-400 flex items-center gap-1.5 mt-1"><Phone className="w-3.5 h-3.5 text-ink-500" /> {info.phone}</p>}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="glass rounded-xl p-4">
@@ -356,6 +624,19 @@ useBarcodeScanner({
                 <p className="text-xs text-ink-400 mt-1">Placed {formatDateTime(selected.placed_at)}</p>
               </div>
             </div>
+
+            {/* Sales Documents — available once the order has been paid */}
+            {selected.payment_status === 'paid' && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+                <span className="text-xs text-ink-400 font-medium mr-2">Sales Documents:</span>
+                <Button variant="secondary" size="sm" onClick={() => handlePrint('receipt')} disabled={printingKind !== null}>
+                  <Printer className="w-3.5 h-3.5" /> {printingKind === 'receipt' ? 'Preparing…' : 'Print Receipt'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => handlePrint('invoice')} disabled={printingKind !== null}>
+                  <FileText className="w-3.5 h-3.5" /> {printingKind === 'invoice' ? 'Preparing…' : 'Print Invoice'}
+                </Button>
+              </div>
+            )}
 
             {/* Action Bar */}
             {selected.status !== 'cancelled' && selected.status !== 'refunded' && (
@@ -490,6 +771,92 @@ useBarcodeScanner({
           </div>
           <Button onClick={issueRefund} disabled={updating || !refundAmount} className="w-full">
             <DollarSign className="w-4 h-4" /> {updating ? 'Processing…' : 'Issue Refund'}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* New Sale (POS) Modal */}
+      <Modal open={posOpen} onClose={() => setPosOpen(false)} title="New Sale — POS Checkout" size="xl">
+        <div className="space-y-5">
+          <div className="glass rounded-xl p-3 flex items-center gap-2 text-xs text-ink-300">
+            <ScanLine className="w-4 h-4 text-gold-400 shrink-0" />
+            Scanner ready — scan a barcode or QR code with a connected USB/Bluetooth scanner and it will be added to the cart automatically. You can also type a barcode, SKU, or QR value below.
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Select label="Branch" value={posBranchId} onChange={(e) => setPosBranchId(e.target.value)}>
+              <option value="">Select branch…</option>
+              {Object.values(branches).map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </Select>
+            <Input
+              label="Customer Email (optional)"
+              placeholder="Leave blank for walk-in sale"
+              value={posCustomerEmail}
+              onChange={(e) => setPosCustomerEmail(e.target.value)}
+              onBlur={(e) => lookupCustomerByEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Input
+              placeholder="Type a barcode, SKU, or QR code…"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleManualLookup()}
+            />
+            <Button variant="secondary" onClick={handleManualLookup} disabled={lookingUp || !manualCode.trim()}>
+              <Plus className="w-4 h-4" /> Add
+            </Button>
+          </div>
+
+          {/* Cart */}
+          <div className="glass rounded-xl p-4">
+            <h4 className="font-semibold text-ink-50 mb-3 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-gold-400" /> Cart</h4>
+            {cart.length === 0 ? (
+              <p className="text-sm text-ink-400">No items yet — scan a product or add one manually.</p>
+            ) : (
+              <div className="space-y-2">
+                {cart.map((line) => (
+                  <div key={line.key} className="flex items-center justify-between gap-3 text-sm border-b border-white/5 last:border-0 pb-2 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="text-ink-100 font-medium truncate">{line.name}</p>
+                      <p className="text-ink-400 text-xs">{line.sku ?? '—'} · {formatCurrency(line.unit_price)} each</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => updateCartQty(line.key, -1)} className="p-1 text-ink-400 hover:text-ink-100"><Minus className="w-3.5 h-3.5" /></button>
+                      <span className="w-6 text-center text-ink-100">{line.quantity}</span>
+                      <button onClick={() => updateCartQty(line.key, 1)} className="p-1 text-ink-400 hover:text-ink-100"><Plus className="w-3.5 h-3.5" /></button>
+                      <span className="w-20 text-right text-ink-100 font-semibold">{formatCurrency(line.unit_price * line.quantity)}</span>
+                      <button onClick={() => removeCartLine(line.key)} className="p-1 text-error-400 hover:text-error-300"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Input label="Discount ($)" type="number" step="0.01" min="0" value={posDiscount} onChange={(e) => setPosDiscount(e.target.value)} />
+            <Input label="Tax ($)" type="number" step="0.01" min="0" value={posTax} onChange={(e) => setPosTax(e.target.value)} />
+            <Select label="Payment Method" value={posPaymentMethod} onChange={(e) => setPosPaymentMethod(e.target.value)}>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="mobile_wallet">Mobile Wallet</option>
+            </Select>
+          </div>
+
+          <div className="glass rounded-xl p-4 flex items-center justify-between">
+            <div className="text-xs text-ink-400 space-y-0.5">
+              <p>Subtotal: {formatCurrency(cartSubtotal)}</p>
+              <p>Discount: −{formatCurrency(cartDiscount)} · Tax: +{formatCurrency(cartTax)}</p>
+            </div>
+            <p className="text-2xl font-bold text-gold-300">{formatCurrency(cartGrandTotal)}</p>
+          </div>
+
+          <Button onClick={completeSale} disabled={posProcessing || cart.length === 0 || !posBranchId} className="w-full">
+            <DollarSign className="w-4 h-4" /> {posProcessing ? 'Processing…' : 'Complete Sale'}
           </Button>
         </div>
       </Modal>

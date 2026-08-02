@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { Branch, Employee, Expense, BranchAnalytics } from '@/types';
 import { formatCurrency } from '@/lib/utils';
@@ -14,6 +15,8 @@ import { formatCurrency } from '@/lib/utils';
 export default function AdminBranches() {
   const { rows, loading, remove } = useAdminTable<Branch>('branches', 'name', true);
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('branches.manage');
   const [selected, setSelected] = useState<Branch | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -47,7 +50,7 @@ export default function AdminBranches() {
 
   return (
     <div>
-      <AdminPageHeader title="Branches" subtitle={`${rows.length} branches — ${activeCount} active`} action={<Button><Plus className="w-4 h-4" /> Add Branch</Button>} />
+      <AdminPageHeader title="Branches" subtitle={`${rows.length} branches — ${activeCount} active`} action={editable ? <Button><Plus className="w-4 h-4" /> Add Branch</Button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />) : (
@@ -79,8 +82,8 @@ export default function AdminBranches() {
           { key: 'actions', label: '', render: (b) => (
             <div className="flex gap-2">
               <button onClick={() => viewDetail(b)} className="text-ink-400 hover:text-gold-300" title="View details"><Building2 className="w-4 h-4" /></button>
-              <button className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
-              <button onClick={() => { remove(b.id); toast('Branch deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>
+              {editable && <button className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>}
+              {editable && <button onClick={() => { remove(b.id); toast('Branch deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>}
             </div>
           ) },
         ]}

@@ -8,6 +8,7 @@ import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { Supplier, SupplierContact, SupplierPayment, SupplierOutstanding, PurchaseOrder } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -15,6 +16,8 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 export default function AdminSuppliers() {
   const { rows, loading, remove } = useAdminTable<Supplier>('suppliers', 'name', true);
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('suppliers.manage');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [tab, setTab] = useState<'contacts' | 'payments' | 'orders'>('contacts');
@@ -63,7 +66,7 @@ export default function AdminSuppliers() {
 
   return (
     <div>
-      <AdminPageHeader title="Suppliers" subtitle={`${rows.length} suppliers`} action={<Button><Plus className="w-4 h-4" /> Add Supplier</Button>} />
+      <AdminPageHeader title="Suppliers" subtitle={`${rows.length} suppliers`} action={editable ? <Button><Plus className="w-4 h-4" /> Add Supplier</Button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />) : (
@@ -96,8 +99,8 @@ export default function AdminSuppliers() {
           { key: 'actions', label: '', render: (s) => (
             <div className="flex gap-2">
               <button onClick={() => viewDetail(s)} className="text-ink-400 hover:text-gold-300" title="View details"><Users className="w-4 h-4" /></button>
-              <button className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
-              <button onClick={() => { remove(s.id); toast('Supplier removed', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>
+              {editable && <button className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>}
+              {editable && <button onClick={() => { remove(s.id); toast('Supplier removed', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>}
             </div>
           ) },
         ]}

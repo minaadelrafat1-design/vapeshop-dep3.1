@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { Category } from '@/types';
 import { slugify } from '@/lib/utils';
 
@@ -28,6 +29,8 @@ const emptyForm: CategoryForm = {
 export default function AdminCategories() {
   const { rows, loading, remove, insert, update } = useAdminTable<Category>('categories', 'sort_order', true);
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('categories.manage');
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -81,7 +84,7 @@ export default function AdminCategories() {
 
   return (
     <div>
-      <AdminPageHeader title="Categories" subtitle={`${rows.length} categories`} action={<Button onClick={openAdd}><Plus className="w-4 h-4" /> Add Category</Button>} />
+      <AdminPageHeader title="Categories" subtitle={`${rows.length} categories`} action={editable ? <Button onClick={openAdd}><Plus className="w-4 h-4" /> Add Category</Button> : undefined} />
       <DataTable<Category>
         loading={loading}
         rows={rows}
@@ -92,8 +95,8 @@ export default function AdminCategories() {
           { key: 'is_featured', label: 'Featured', render: (c) => <Badge color={c.is_featured ? 'gold' : 'neutral'}>{c.is_featured ? 'Yes' : 'No'}</Badge> },
           { key: 'actions', label: '', render: (c) => (
             <div className="flex gap-2">
-              <button onClick={() => openEdit(c)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
-              <button onClick={async () => { const { error } = await remove(c.id); if (error) toast(error, 'error'); else toast('Category deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>
+              {editable && <button onClick={() => openEdit(c)} className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>}
+              {editable && <button onClick={async () => { const { error } = await remove(c.id); if (error) toast(error, 'error'); else toast('Category deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>}
             </div>
           ) },
         ]}

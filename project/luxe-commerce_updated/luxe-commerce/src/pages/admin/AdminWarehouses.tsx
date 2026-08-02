@@ -8,6 +8,7 @@ import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { Warehouse, Inventory, InventoryTransaction } from '@/types';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
@@ -15,6 +16,8 @@ import { formatCurrency, formatDateTime } from '@/lib/utils';
 export default function AdminWarehouses() {
   const { rows, loading, remove } = useAdminTable<Warehouse>('warehouses', 'name', true);
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('warehouses.manage');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Warehouse | null>(null);
   const [invCount, setInvCount] = useState(0);
@@ -48,7 +51,7 @@ export default function AdminWarehouses() {
 
   return (
     <div>
-      <AdminPageHeader title="Warehouses" subtitle={`${rows.length} warehouses`} action={<Button><Plus className="w-4 h-4" /> Add Warehouse</Button>} />
+      <AdminPageHeader title="Warehouses" subtitle={`${rows.length} warehouses`} action={editable ? <Button><Plus className="w-4 h-4" /> Add Warehouse</Button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />) : (
@@ -80,8 +83,8 @@ export default function AdminWarehouses() {
           { key: 'actions', label: '', render: (w) => (
             <div className="flex gap-2">
               <button onClick={() => viewInventory(w)} className="text-ink-400 hover:text-gold-300" title="View details"><Package className="w-4 h-4" /></button>
-              <button className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>
-              <button onClick={() => { remove(w.id); toast('Warehouse deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>
+              {editable && <button className="text-ink-400 hover:text-gold-300"><Pencil className="w-4 h-4" /></button>}
+              {editable && <button onClick={() => { remove(w.id); toast('Warehouse deleted', 'info'); }} className="text-ink-400 hover:text-error-500"><Trash2 className="w-4 h-4" /></button>}
             </div>
           ) },
         ]}

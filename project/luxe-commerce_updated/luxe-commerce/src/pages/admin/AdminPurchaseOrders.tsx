@@ -7,6 +7,7 @@ import { Badge, Skeleton } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import type { PurchaseOrder, PurchaseOrderItem, Supplier, Warehouse, Product } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -19,6 +20,9 @@ export default function AdminPurchaseOrders() {
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [items, setItems] = useState<(PurchaseOrderItem & { product?: Product })[]>([]);
   const { toast } = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit('purchase_orders.manage');
+  const canReceive = canEdit('purchase_orders.receive') || editable;
 
   useEffect(() => {
     (async () => {
@@ -63,7 +67,7 @@ export default function AdminPurchaseOrders() {
 
   return (
     <div>
-      <AdminPageHeader title="Purchase Orders" subtitle={`${orders.length} total POs`} action={<Button><Plus className="w-4 h-4" /> Create PO</Button>} />
+      <AdminPageHeader title="Purchase Orders" subtitle={`${orders.length} total POs`} action={editable ? <Button><Plus className="w-4 h-4" /> Create PO</Button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />) : (
@@ -96,7 +100,7 @@ export default function AdminPurchaseOrders() {
           { key: 'actions', label: '', render: (o) => (
             <div className="flex gap-2">
               <button onClick={() => view(o)} className="text-ink-400 hover:text-gold-300"><Eye className="w-4 h-4" /></button>
-              {o.status !== 'received' && o.status !== 'cancelled' && (
+              {canReceive && o.status !== 'received' && o.status !== 'cancelled' && (
                 <button onClick={() => receive(o)} className="text-accent-400 hover:text-accent-300" title="Receive & update inventory"><CheckCircle2 className="w-4 h-4" /></button>
               )}
             </div>
@@ -126,7 +130,7 @@ export default function AdminPurchaseOrders() {
                 ))}
               </div>
             </div>
-            {selected.status !== 'received' && selected.status !== 'cancelled' && (
+            {canReceive && selected.status !== 'received' && selected.status !== 'cancelled' && (
               <Button onClick={() => { receive(selected); }} className="w-full"><CheckCircle2 className="w-4 h-4" /> Receive & Sync Inventory</Button>
             )}
           </div>
