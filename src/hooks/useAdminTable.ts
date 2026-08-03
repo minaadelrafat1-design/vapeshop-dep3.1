@@ -42,14 +42,14 @@ export function useAdminTable<T extends { id: string }>(
   };
 
   const update = async (id: string, patch: Partial<T>): Promise<{ error: string | null }> => {
-    const { error } = await supabase.from(table).update(patch).eq('id', id);
+    const { error } = await supabase.from(table).update(patch as any).eq('id', id);
     if (error) return { error: error.message };
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     return { error: null };
   };
 
   const insert = async (payload: Partial<T>): Promise<{ error: string | null }> => {
-    const { error } = await supabase.from(table).insert(payload);
+    const { error } = await supabase.from(table).insert(payload as any);
     if (error) return { error: error.message };
     await fetch();
     return { error: null };
