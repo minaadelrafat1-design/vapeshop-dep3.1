@@ -7,11 +7,13 @@ import { Button } from '@components/Button';
 import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
 import { roleLabel } from '@constants';
+import { useResponsive } from '@hooks/useResponsive';
 
 export default function ProfileScreen() {
   const { colors } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
+  const layout = useResponsive();
 
   if (!profile) return null;
 
@@ -19,8 +21,8 @@ export default function ProfileScreen() {
 
   return (
     <ScreenWrapper edges={['top', 'bottom']}>
-      <AppHeader title="Profile" subtitle="Account information" showBack />
-      <View style={styles.content}>
+      <AppHeader title="Profile" subtitle="Account information" showBack showMenu />
+      <View style={[styles.content, { paddingHorizontal: layout.padding, gap: layout.cardGap, maxWidth: layout.contentMaxWidth, alignSelf: layout.isTablet ? 'center' : 'stretch' }]}>
         <View style={styles.avatarRow}>
           <View style={[styles.avatar, { backgroundColor: colors.gold }]}>
             <Text style={styles.avatarText}>{initials}</Text>
@@ -59,7 +61,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 20, gap: 16 },
+  content: { flex: 1 },
   avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 28, fontWeight: '800', color: '#0c0f13' },

@@ -7,16 +7,18 @@ import { Button } from '@components/Button';
 import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
 import { roleLabel } from '@constants';
+import { useResponsive } from '@hooks/useResponsive';
 
 export default function SettingsScreen() {
   const { colors, mode, toggle } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
+  const layout = useResponsive();
 
   return (
     <ScreenWrapper edges={['top', 'bottom']}>
-      <AppHeader title="Settings" subtitle="App preferences" showBack />
-      <View style={styles.content}>
+      <AppHeader title="Settings" subtitle="App preferences" showBack showMenu />
+      <View style={[styles.content, { paddingHorizontal: layout.padding, gap: layout.cardGap, maxWidth: layout.contentMaxWidth, alignSelf: layout.isTablet ? 'center' : 'stretch' }]}>
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Appearance</Text>
           <View style={styles.themeRow}>
@@ -51,7 +53,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 20, gap: 16 },
+  content: { flex: 1 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
   themeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   themeLabel: { fontSize: 14 },

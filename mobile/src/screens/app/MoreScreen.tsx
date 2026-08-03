@@ -6,14 +6,15 @@ import { Card } from '@components/Card';
 import { NavMenu } from '@components/NavMenu';
 import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
-import { roleLabel, ROLE_LABELS } from '@constants';
-import { roleRank } from '@apptypes';
+import { roleLabel } from '@constants';
 import { getAccessibleNavGroups } from '@config/navigation';
+import { useResponsive } from '@hooks/useResponsive';
 
 export default function MoreScreen() {
   const { colors } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
+  const layout = useResponsive();
 
   if (!profile) return null;
 
@@ -21,8 +22,8 @@ export default function MoreScreen() {
 
   return (
     <ScreenWrapper edges={['top', 'bottom']}>
-      <AppHeader title="More" subtitle="All modules" />
-      <View style={styles.content}>
+      <AppHeader title="More" subtitle="All modules" showMenu />
+      <View style={[styles.content, { paddingHorizontal: layout.padding, gap: layout.cardGap, maxWidth: layout.contentMaxWidth, alignSelf: layout.isTablet ? 'center' : 'stretch' }]}>
         <Card>
           <View style={styles.accountRow}>
             <View style={[styles.avatar, { backgroundColor: colors.gold }]}>

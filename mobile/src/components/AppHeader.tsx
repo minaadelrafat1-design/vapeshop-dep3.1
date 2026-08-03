@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useThemeStore } from '@store/themeStore';
 import type { IconName } from '@apptypes';
@@ -20,6 +22,15 @@ interface AppHeaderProps {
 export function AppHeader({ title, subtitle, showBack, showMenu, rightIcon, onRightPress, onMenuPress }: AppHeaderProps) {
   const { colors } = useThemeStore();
   const router = useRouter();
+  const navigation = useNavigation<DrawerNavigationProp<Record<string, object | undefined>>>();
+
+  const handleMenu = () => {
+    if (onMenuPress) {
+      onMenuPress();
+    } else {
+      navigation.openDrawer();
+    }
+  };
 
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
@@ -31,7 +42,7 @@ export function AppHeader({ title, subtitle, showBack, showMenu, rightIcon, onRi
             </TouchableOpacity>
           )}
           {showMenu && (
-            <TouchableOpacity onPress={onMenuPress} style={styles.iconButton}>
+            <TouchableOpacity onPress={handleMenu} style={styles.iconButton}>
               <MaterialCommunityIcons name="menu" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
           )}

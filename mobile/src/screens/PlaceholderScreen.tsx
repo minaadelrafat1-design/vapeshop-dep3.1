@@ -6,6 +6,7 @@ import { Card } from '@components/Card';
 import { EmptyState } from '@components/EmptyState';
 import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
+import { useResponsive } from '@hooks/useResponsive';
 import { roleLabel } from '@constants';
 import type { IconName } from '@apptypes';
 
@@ -18,11 +19,12 @@ interface PlaceholderScreenProps {
 export function PlaceholderScreen({ moduleName, moduleDescription, icon = 'info' }: PlaceholderScreenProps) {
   const { colors } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
+  const layout = useResponsive();
 
   return (
     <ScreenWrapper>
-      <AppHeader title={moduleName} subtitle={moduleDescription} />
-      <View style={styles.content}>
+      <AppHeader title={moduleName} subtitle={moduleDescription} showBack showMenu />
+      <View style={[styles.content, { paddingHorizontal: layout.padding, gap: layout.cardGap, maxWidth: layout.contentMaxWidth, alignSelf: layout.isTablet ? 'center' : 'stretch' }]}>
         <Card>
           <View style={styles.comingSoonRow}>
             <Text style={[styles.comingSoon, { color: colors.gold }]}>Coming Soon</Text>
@@ -67,7 +69,7 @@ export function PlaceholderScreen({ moduleName, moduleDescription, icon = 'info'
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 20, gap: 16 },
+  content: { flex: 1 },
   comingSoonRow: { marginBottom: 8 },
   comingSoon: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },

@@ -1,12 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
 import { roleLabel } from '@constants';
-import { roleRank } from '@apptypes';
 import { getAccessibleNavGroups } from '@config/navigation';
 import { getIconName } from '@config/icons';
 
@@ -16,6 +17,7 @@ const DRAWER_WIDTH = Math.min(width * 0.82, 320);
 export function DrawerContent() {
   const { colors } = useThemeStore();
   const router = useRouter();
+  const navigation = useNavigation<DrawerNavigationProp<Record<string, object | undefined>>>();
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
 
@@ -26,6 +28,12 @@ export function DrawerContent() {
 
   const navigate = (key: string) => {
     router.push(`/(app)/${key}` as never);
+    navigation.closeDrawer();
+  };
+
+  const handleSignOut = () => {
+    navigation.closeDrawer();
+    signOut();
   };
 
   return (
@@ -45,7 +53,7 @@ export function DrawerContent() {
         </View>
       </View>
 
-      <View style={styles.navSection}>
+      <ScrollView style={styles.navSection} contentContainerStyle={styles.navContent}>
         {groups.map((group) => (
           <View key={group.config.key} style={styles.group}>
             <Text style={[styles.groupLabel, { color: colors.textMuted }]}>{group.config.label}</Text>
@@ -63,9 +71,9 @@ export function DrawerContent() {
             ))}
           </View>
         ))}
-      </View>
+      </ScrollView>
 
-      <TouchableOpacity style={[styles.signOut, { borderTopColor: colors.border }]} onPress={() => signOut()}>
+      <TouchableOpacity style={[styles.signOut, { borderTopColor: colors.border }]} onPress={handleSignOut}>
         <MaterialCommunityIcons name="logout" size={20} color={colors.error} />
         <Text style={[styles.signOutText, { color: colors.error }]}>Sign Out</Text>
       </TouchableOpacity>
@@ -83,7 +91,8 @@ const styles = StyleSheet.create({
   email: { fontSize: 12 },
   roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 2 },
   roleText: { fontSize: 11, fontWeight: '600' },
-  navSection: { flex: 1, padding: 12, gap: 4 },
+  navSection: { flex: 1, padding: 12 },
+  navContent: { gap: 4 },
   group: { marginBottom: 8 },
   groupLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4, letterSpacing: 0.5 },
   navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 10 },

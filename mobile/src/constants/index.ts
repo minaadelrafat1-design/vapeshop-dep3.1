@@ -19,6 +19,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   marketing: 'Marketing',
   accountant: 'Accountant',
   customer_support: 'Customer Support',
+  delivery_driver: 'Delivery Driver',
 };
 
 export function roleLabel(role: UserRole | string | null | undefined): string {
@@ -123,6 +124,7 @@ export const ROLE_QUICK_ACTIONS: Partial<Record<UserRole, string[]>> = {
   accountant: ['reports', 'analytics', 'purchase-orders'],
   marketing: ['products', 'categories', 'customers', 'analytics'],
   customer_support: ['customers', 'sales-orders', 'notifications', 'tasks'],
+  delivery_driver: ['tasks', 'sales-orders', 'notifications'],
   staff: ['dashboard', 'notifications', 'tasks'],
   customer: ['dashboard', 'notifications', 'help'],
 };

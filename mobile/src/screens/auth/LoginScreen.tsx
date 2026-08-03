@@ -8,11 +8,13 @@ import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
 import { authService } from '@services/authService';
 import { isStaffRole, type UserRole } from '@apptypes';
+import { useResponsive } from '@hooks/useResponsive';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { colors } = useThemeStore();
   const initialize = useAuthStore((s) => s.initialize);
+  const layout = useResponsive();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -72,7 +74,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingHorizontal: layout.padding, maxWidth: layout.isTablet ? 480 : undefined, alignSelf: layout.isTablet ? 'center' : 'stretch' }]}>
         <Text style={[styles.brand, { color: colors.gold }]}>LUXE</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>ERP Staff Portal</Text>
 
@@ -109,7 +111,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  content: { flex: 1, justifyContent: 'center' },
   brand: { fontSize: 36, fontWeight: '800', textAlign: 'center', letterSpacing: 3 },
   subtitle: { fontSize: 14, textAlign: 'center', marginTop: 4, marginBottom: 40 },
   form: { gap: 16 },

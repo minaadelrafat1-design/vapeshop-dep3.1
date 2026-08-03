@@ -16,7 +16,8 @@ export type UserRole =
   | 'sales_employee'
   | 'marketing'
   | 'accountant'
-  | 'customer_support';
+  | 'customer_support'
+  | 'delivery_driver';
 
 export type UserStatus = 'active' | 'suspended' | 'locked';
 
@@ -75,6 +76,7 @@ export const ROLE_RANK: Record<string, number> = {
   marketing: 40,
   accountant: 40,
   customer_support: 40,
+  delivery_driver: 40,
   staff: 20,
   customer: 0,
 };
@@ -88,6 +90,7 @@ export const STAFF_ROLES: UserRole[] = [
   'super_admin', 'company_owner', 'general_manager',
   'warehouse_manager', 'branch_manager', 'inventory_employee',
   'sales_employee', 'marketing', 'accountant', 'customer_support',
+  'delivery_driver',
 ];
 
 export function isStaffRole(role: UserRole | undefined | null): boolean {

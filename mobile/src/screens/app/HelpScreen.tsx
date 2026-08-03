@@ -5,17 +5,19 @@ import { AppHeader } from '@components/AppHeader';
 import { Card } from '@components/Card';
 import { useThemeStore } from '@store/themeStore';
 import { APP_CONFIG } from '@constants';
+import { useResponsive } from '@hooks/useResponsive';
 
 export default function HelpScreen() {
   const { colors } = useThemeStore();
+  const layout = useResponsive();
 
   const contactEmail = 'support@luxe-erp.com';
   const contactPhone = '+1-800-LUXE-ERP';
 
   return (
     <ScreenWrapper edges={['top', 'bottom']}>
-      <AppHeader title="Help & Support" subtitle="Get assistance" showBack />
-      <View style={styles.content}>
+      <AppHeader title="Help & Support" subtitle="Get assistance" showBack showMenu />
+      <View style={[styles.content, { paddingHorizontal: layout.padding, gap: layout.cardGap, maxWidth: layout.contentMaxWidth, alignSelf: layout.isTablet ? 'center' : 'stretch' }]}>
         <Card>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{APP_CONFIG.name} Mobile</Text>
           <Text style={[styles.body, { color: colors.textSecondary }]}>
@@ -49,7 +51,7 @@ export default function HelpScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 20, gap: 16 },
+  content: { flex: 1 },
   title: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
   body: { fontSize: 14, lineHeight: 22 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },

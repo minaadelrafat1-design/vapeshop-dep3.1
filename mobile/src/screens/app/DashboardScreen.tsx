@@ -1,28 +1,25 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ScreenWrapper } from '@components/ScreenWrapper';
 import { AppHeader } from '@components/AppHeader';
 import { Card } from '@components/Card';
 import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
 import { usePermissions } from '@hooks/usePermissions';
-import { roleLabel, ROLE_LABELS } from '@constants';
-import { roleRank } from '@apptypes';
+import { useResponsive, getCardWidth } from '@hooks/useResponsive';
+import { roleLabel } from '@constants';
 import { ROLE_QUICK_ACTIONS } from '@constants';
 import { getAccessibleNavItems } from '@config/navigation';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getIconName } from '@config/icons';
 
-const { width } = Dimensions.get('window');
-const isTablet = width >= 768;
-const cardWidth = isTablet ? (width - 60) / 3 : (width - 50) / 2;
-
 export default function DashboardScreen() {
   const { colors } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
   const { canEdit } = usePermissions();
   const router = useRouter();
+  const layout = useResponsive();
 
   if (!profile) return null;
 
@@ -32,16 +29,12 @@ export default function DashboardScreen() {
   const quickActions = quickActionKeys
     .map((key) => accessibleItems.find((item) => item.key === key))
     .filter((item): item is NonNullable<typeof item> => item !== undefined);
+  const cardWidth = getCardWidth(layout, layout.columns);
 
   return (
     <ScreenWrapper>
-      <AppHeader
-        title="Dashboard"
-        subtitle="Business overview"
-        showMenu
-        onMenuPress={() => router.push('/(app)/more' as never)}
-      />
-      <View style={styles.content}>
+      <AppHeader title="Dashboard" subtitle="Business overview" showMenu />
+      <View style={[styles.content, { paddingHorizontal: layout.padding, gap: layout.cardGap }]}>
         <Card>
           <Text style={[styles.welcome, { color: colors.textSecondary }]}>Welcome back,</Text>
           <Text style={[styles.email, { color: colors.textPrimary }]}>{profile.full_name || profile.email}</Text>
@@ -59,7 +52,7 @@ export default function DashboardScreen() {
             {quickActions.map((item) => (
               <TouchableOpacity
                 key={item.key}
-                style={[styles.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }, { width: cardWidth }]}
+                style={[styles.quickCard, { backgroundColor: colors.surface, borderColor: colors.border, width: cardWidth }]}
                 onPress={() => router.push(`/(app)/${item.key}` as never)}
                 activeOpacity={0.7}
               >
@@ -82,7 +75,7 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 20, gap: 16 },
+  content: { flex: 1 },
   welcome: { fontSize: 14 },
   email: { fontSize: 18, fontWeight: '600', marginTop: 2 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
