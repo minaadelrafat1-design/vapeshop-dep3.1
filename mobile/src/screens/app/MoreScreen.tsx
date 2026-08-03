@@ -1,98 +1,75 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { ScreenWrapper } from '@components/ScreenWrapper';
+import { AppHeader } from '@components/AppHeader';
 import { Card } from '@components/Card';
-import { COLORS, ROLE_LABELS } from '@constants';
+import { NavMenu } from '@components/NavMenu';
+import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
+import { roleLabel, ROLE_LABELS } from '@constants';
 import { roleRank } from '@apptypes';
-
-interface NavItem {
-  label: string;
-  route: string;
-  minRank: number;
-  icon: string;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Orders', route: '/(app)/orders', minRank: 40, icon: '📦' },
-  { label: 'Inventory', route: '/(app)/inventory', minRank: 40, icon: '📊' },
-  { label: 'Profile', route: '/(app)/profile', minRank: 20, icon: '👤' },
-];
+import { getAccessibleNavGroups } from '@config/navigation';
 
 export default function MoreScreen() {
-  const router = useRouter();
+  const { colors } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
 
   if (!profile) return null;
 
-  const accessibleItems = NAV_ITEMS.filter((item) => roleRank(profile.role) >= item.minRank);
+  const groups = getAccessibleNavGroups(profile.role);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <ScreenWrapper edges={['top', 'bottom']}>
+      <AppHeader title="More" subtitle="All modules" />
       <View style={styles.content}>
-        <Text style={styles.title}>More</Text>
-
-        <View style={styles.navSection}>
-          {accessibleItems.map((item) => (
-            <TouchableOpacity
-              key={item.route}
-              style={styles.navItem}
-              onPress={() => router.push(item.route)}
-            >
-              <Text style={styles.navIcon}>{item.icon}</Text>
-              <Text style={styles.navLabel}>{item.label}</Text>
-              <Text style={styles.navArrow}>›</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         <Card>
-          <Text style={styles.accountLabel}>Account</Text>
           <View style={styles.accountRow}>
-            <Text style={styles.accountName}>{profile.full_name || profile.email}</Text>
-            <Text style={styles.accountRole}>{ROLE_LABELS[profile.role] ?? 'Staff'}</Text>
+            <View style={[styles.avatar, { backgroundColor: colors.gold }]}>
+              <Text style={styles.avatarText}>
+                {(profile.full_name || profile.email || 'U').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.accountInfo}>
+              <Text style={[styles.accountName, { color: colors.textPrimary }]}>{profile.full_name || 'Staff Member'}</Text>
+              <Text style={[styles.accountEmail, { color: colors.textMuted }]}>{profile.email}</Text>
+              <View style={[styles.roleBadge, { backgroundColor: colors.gold + '20' }]}>
+                <Text style={[styles.roleText, { color: colors.gold }]}>{roleLabel(profile.role)}</Text>
+              </View>
+            </View>
           </View>
         </Card>
 
-        <TouchableOpacity style={styles.signOutButton} onPress={() => signOut()}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+        {groups.map((group) => (
+          <View key={group.config.key} style={styles.groupSection}>
+            <Text style={[styles.groupLabel, { color: colors.textMuted }]}>{group.config.label}</Text>
+            <NavMenu items={group.items} />
+          </View>
+        ))}
+
+        <TouchableOpacity
+          style={[styles.signOutButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => signOut()}
+        >
+          <Text style={[styles.signOutText, { color: colors.error }]}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, padding: 20 },
-  title: { fontSize: 28, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 24 },
-  navSection: { gap: 8, marginBottom: 24 },
-  navItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  navIcon: { fontSize: 22, marginRight: 14 },
-  navLabel: { flex: 1, fontSize: 16, fontWeight: '500', color: COLORS.textPrimary },
-  navArrow: { fontSize: 22, color: COLORS.textMuted },
-  accountLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginBottom: 12, textTransform: 'uppercase' as const },
-  accountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  accountName: { fontSize: 15, fontWeight: '500', color: COLORS.textPrimary },
-  accountRole: { fontSize: 13, color: COLORS.gold[400] },
-  signOutButton: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginTop: 16,
-  },
-  signOutText: { fontSize: 16, fontWeight: '600', color: COLORS.error[500] },
+  content: { flex: 1, padding: 20, gap: 16 },
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 20, fontWeight: '800', color: '#0c0f13' },
+  accountInfo: { flex: 1, gap: 2 },
+  accountName: { fontSize: 16, fontWeight: '600' },
+  accountEmail: { fontSize: 13 },
+  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 4 },
+  roleText: { fontSize: 11, fontWeight: '600' },
+  groupSection: { gap: 8 },
+  groupLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 4 },
+  signOutButton: { borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, marginTop: 8 },
+  signOutText: { fontSize: 16, fontWeight: '600' },
 });

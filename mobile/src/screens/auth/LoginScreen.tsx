@@ -4,13 +4,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Input } from '@components/Input';
 import { Button } from '@components/Button';
-import { COLORS } from '@constants';
+import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
 import { authService } from '@services/authService';
 import { isStaffRole, type UserRole } from '@apptypes';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { colors } = useThemeStore();
   const initialize = useAuthStore((s) => s.initialize);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,7 +62,7 @@ export default function LoginScreen() {
         return;
       }
 
-      router.replace('/(app)/dashboard');
+      router.replace('/(app)/dashboard' as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
@@ -70,10 +71,10 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
-        <Text style={styles.brand}>LUXE</Text>
-        <Text style={styles.subtitle}>ERP Staff Portal</Text>
+        <Text style={[styles.brand, { color: colors.gold }]}>LUXE</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>ERP Staff Portal</Text>
 
         <View style={styles.form}>
           <Input
@@ -92,28 +93,27 @@ export default function LoginScreen() {
             placeholder="Enter password"
           />
           <TouchableOpacity onPress={() => setShowPassword((s) => !s)} style={styles.toggleRow}>
-            <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'} password</Text>
+            <Text style={{ fontSize: 13, color: colors.gold }}>{showPassword ? 'Hide' : 'Show'} password</Text>
           </TouchableOpacity>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
           <Button title={busy ? 'Signing in…' : 'Sign In'} onPress={submit} disabled={busy} />
         </View>
 
-        <Text style={styles.footer}>Employee accounts are created by authorized administrators.</Text>
+        <Text style={[styles.footer, { color: colors.textMuted }]}>Employee accounts are created by authorized administrators.</Text>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-  brand: { fontSize: 36, fontWeight: '800', color: COLORS.gold[400], textAlign: 'center' },
-  subtitle: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', marginTop: 4, marginBottom: 40 },
+  brand: { fontSize: 36, fontWeight: '800', textAlign: 'center', letterSpacing: 3 },
+  subtitle: { fontSize: 14, textAlign: 'center', marginTop: 4, marginBottom: 40 },
   form: { gap: 16 },
   toggleRow: { alignSelf: 'flex-end', marginTop: 4 },
-  toggleText: { fontSize: 13, color: COLORS.gold[400] },
-  errorText: { fontSize: 13, color: COLORS.error[500], marginTop: 8 },
-  footer: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 32 },
+  errorText: { fontSize: 13, marginTop: 8 },
+  footer: { fontSize: 12, textAlign: 'center', marginTop: 32 },
 });

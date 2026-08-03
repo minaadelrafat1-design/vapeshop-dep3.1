@@ -1,11 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenWrapper } from '@components/ScreenWrapper';
+import { AppHeader } from '@components/AppHeader';
 import { Card } from '@components/Card';
-import { COLORS, ROLE_LABELS } from '@constants';
+import { Button } from '@components/Button';
+import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
+import { roleLabel } from '@constants';
 
 export default function ProfileScreen() {
+  const { colors } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
 
@@ -14,57 +18,56 @@ export default function ProfileScreen() {
   const initials = (profile.full_name || profile.email || 'U').charAt(0).toUpperCase();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper edges={['top', 'bottom']}>
+      <AppHeader title="Profile" subtitle="Account information" showBack />
       <View style={styles.content}>
-        <Text style={styles.header}>Profile</Text>
         <View style={styles.avatarRow}>
-          <View style={styles.avatar}>
+          <View style={[styles.avatar, { backgroundColor: colors.gold }]}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.avatarInfo}>
-            <Text style={styles.name}>{profile.full_name || 'Staff Member'}</Text>
-            <Text style={styles.email}>{profile.email}</Text>
+            <Text style={[styles.name, { color: colors.textPrimary }]}>{profile.full_name || 'Staff Member'}</Text>
+            <Text style={[styles.email, { color: colors.textSecondary }]}>{profile.email}</Text>
           </View>
         </View>
+
         <Card>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Role</Text>
-            <Text style={styles.infoValue}>{ROLE_LABELS[profile.role] ?? 'Staff'}</Text>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Role</Text>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{roleLabel(profile.role)}</Text>
+          </View>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Status</Text>
+            <Text style={[styles.infoValue, { color: profile.status === 'active' ? colors.success : colors.error }]}>{profile.status}</Text>
+          </View>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Phone</Text>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{profile.phone ?? '—'}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Status</Text>
-            <Text style={styles.infoValue}>{profile.status}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{profile.phone ?? '—'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Last Login</Text>
-            <Text style={styles.infoValue}>{profile.last_login_at ? new Date(profile.last_login_at).toLocaleString() : '—'}</Text>
+            <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Last Login</Text>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
+              {profile.last_login_at ? new Date(profile.last_login_at).toLocaleString() : '—'}
+            </Text>
           </View>
         </Card>
-        <TouchableOpacity style={styles.signOutButton} onPress={() => signOut()}>
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+
+        <Button title="Sign Out" onPress={() => signOut()} variant="danger" style={styles.signOut} />
       </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, padding: 20 },
-  header: { fontSize: 28, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 20 },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.gold[500], alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 28, fontWeight: '800', color: COLORS.background },
+  content: { flex: 1, padding: 20, gap: 16 },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 28, fontWeight: '800', color: '#0c0f13' },
   avatarInfo: { flex: 1 },
-  name: { fontSize: 18, fontWeight: '600', color: COLORS.textPrimary },
-  email: { fontSize: 14, color: COLORS.textSecondary, marginTop: 2 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border },
-  infoLabel: { fontSize: 14, color: COLORS.textMuted },
-  infoValue: { fontSize: 14, color: COLORS.textPrimary, fontWeight: '500' },
-  signOutButton: { backgroundColor: COLORS.error[500] + '15', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 24 },
-  signOutText: { fontSize: 16, fontWeight: '600', color: COLORS.error[500] },
+  name: { fontSize: 18, fontWeight: '600' },
+  email: { fontSize: 14, marginTop: 2 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  infoLabel: { fontSize: 14 },
+  infoValue: { fontSize: 14, fontWeight: '500' },
+  signOut: { marginTop: 8 },
 });

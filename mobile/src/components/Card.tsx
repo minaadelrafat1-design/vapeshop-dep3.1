@@ -1,22 +1,36 @@
 import React from 'react';
 import { View, StyleSheet, type ViewStyle } from 'react-native';
-import { COLORS } from '@constants';
+import { useThemeStore } from '@store/themeStore';
 
 interface CardProps {
   children: React.ReactNode;
   style?: ViewStyle;
+  elevated?: boolean;
+  padding?: number;
 }
 
-export function Card({ children, style }: CardProps) {
-  return <View style={[styles.card, style]}>{children}</View>;
+export function Card({ children, style, elevated, padding = 20 }: CardProps) {
+  const { colors } = useThemeStore();
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: elevated ? colors.surfaceElevated : colors.surface,
+          borderColor: colors.border,
+          padding,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.surface,
     borderRadius: 16,
-    padding: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
   } as ViewStyle,
 });

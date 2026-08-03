@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
-import { COLORS } from '@constants';
+import { useThemeStore } from '@store/themeStore';
 
 interface InputProps {
   label?: string;
@@ -27,23 +27,27 @@ export function Input({
   hint,
   style,
 }: InputProps) {
+  const { colors } = useThemeStore();
   return (
     <View style={[styles.container, style]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>}
       <TextInput
-        style={[styles.input, error ? styles.inputError : undefined]}
+        style={[
+          styles.input,
+          { backgroundColor: colors.surface, borderColor: error ? colors.error : colors.border, color: colors.textPrimary },
+        ]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={COLORS.textMuted}
+        placeholderTextColor={colors.textMuted}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
       />
       {error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
       ) : hint ? (
-        <Text style={styles.hintText}>{hint}</Text>
+        <Text style={[styles.hintText, { color: colors.textMuted }]}>{hint}</Text>
       ) : null}
     </View>
   );
@@ -51,33 +55,8 @@ export function Input({
 
 const styles = StyleSheet.create({
   container: { width: '100%', marginBottom: 16 } as ViewStyle,
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-    marginBottom: 6,
-  } as TextStyle,
-  input: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-  } as TextStyle,
-  inputError: {
-      borderColor: COLORS.error,
-    } as TextStyle,
-  errorText: {
-    fontSize: 12,
-    color: COLORS.error,
-    marginTop: 4,
-  } as TextStyle,
-  hintText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 4,
-  } as TextStyle,
+  label: { fontSize: 14, fontWeight: '500', marginBottom: 6 } as TextStyle,
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 } as TextStyle,
+  errorText: { fontSize: 12, marginTop: 4 } as TextStyle,
+  hintText: { fontSize: 12, marginTop: 4 } as TextStyle,
 });

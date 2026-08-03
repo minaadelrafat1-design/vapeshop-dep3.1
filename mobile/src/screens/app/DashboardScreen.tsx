@@ -1,54 +1,99 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { ScreenWrapper } from '@components/ScreenWrapper';
+import { AppHeader } from '@components/AppHeader';
 import { Card } from '@components/Card';
-import { COLORS, ROLE_LABELS } from '@constants';
+import { useThemeStore } from '@store/themeStore';
 import { useAuthStore } from '@store/authStore';
 import { usePermissions } from '@hooks/usePermissions';
+import { roleLabel, ROLE_LABELS } from '@constants';
+import { roleRank } from '@apptypes';
+import { ROLE_QUICK_ACTIONS } from '@constants';
+import { getAccessibleNavItems } from '@config/navigation';
+import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { getIconName } from '@config/icons';
+
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
+const cardWidth = isTablet ? (width - 60) / 3 : (width - 50) / 2;
 
 export default function DashboardScreen() {
+  const { colors } = useThemeStore();
   const profile = useAuthStore((s) => s.profile);
   const { canEdit } = usePermissions();
+  const router = useRouter();
 
   if (!profile) return null;
 
   const accessLevel = canEdit('dashboard.view') ? 'Full Access' : 'View Only';
+  const quickActionKeys = ROLE_QUICK_ACTIONS[profile.role] ?? ['dashboard', 'notifications', 'help'];
+  const accessibleItems = getAccessibleNavItems(profile.role);
+  const quickActions = quickActionKeys
+    .map((key) => accessibleItems.find((item) => item.key === key))
+    .filter((item): item is NonNullable<typeof item> => item !== undefined);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper>
+      <AppHeader
+        title="Dashboard"
+        subtitle="Business overview"
+        showMenu
+        onMenuPress={() => router.push('/(app)/more' as never)}
+      />
       <View style={styles.content}>
-        <Text style={styles.header}>Dashboard</Text>
         <Card>
-          <Text style={styles.welcome}>Welcome back,</Text>
-          <Text style={styles.email}>{profile.email}</Text>
+          <Text style={[styles.welcome, { color: colors.textSecondary }]}>Welcome back,</Text>
+          <Text style={[styles.email, { color: colors.textPrimary }]}>{profile.full_name || profile.email}</Text>
           <View style={styles.badgeRow}>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>{ROLE_LABELS[profile.role] ?? 'Staff'}</Text>
+            <View style={[styles.roleBadge, { backgroundColor: colors.gold + '20' }]}>
+              <Text style={[styles.roleText, { color: colors.gold }]}>{roleLabel(profile.role)}</Text>
             </View>
-            <Text style={styles.accessLevel}>{accessLevel}</Text>
+            <Text style={[styles.accessLevel, { color: colors.textMuted }]}>{accessLevel}</Text>
           </View>
         </Card>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Quick Actions</Text>
+          <View style={styles.quickGrid}>
+            {quickActions.map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }, { width: cardWidth }]}
+                onPress={() => router.push(`/(app)/${item.key}` as never)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name={getIconName(item.icon)} size={28} color={colors.gold} />
+                <Text style={[styles.quickLabel, { color: colors.textPrimary }]} numberOfLines={1}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <Card>
-          <Text style={styles.cardTitle}>ERP Modules</Text>
-          <Text style={styles.cardBody}>
-            Dashboard modules will appear here. Your role ({ROLE_LABELS[profile.role] ?? 'Staff'}) and permission grants determine which modules are visible.
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>ERP Modules</Text>
+          <Text style={[styles.cardBody, { color: colors.textSecondary }]}>
+            Your role ({roleLabel(profile.role)}) and permission grants determine which modules are visible. Use the drawer or More tab to navigate to all available modules.
           </Text>
         </Card>
       </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, padding: 20 },
-  header: { fontSize: 28, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 20 },
-  welcome: { fontSize: 14, color: COLORS.textSecondary },
-  email: { fontSize: 18, fontWeight: '600', color: COLORS.textPrimary, marginTop: 2 },
+  content: { flex: 1, padding: 20, gap: 16 },
+  welcome: { fontSize: 14 },
+  email: { fontSize: 18, fontWeight: '600', marginTop: 2 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  roleBadge: { backgroundColor: COLORS.gold[500] + '20', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
-  roleText: { fontSize: 12, fontWeight: '600', color: COLORS.gold[400] },
-  accessLevel: { fontSize: 12, color: COLORS.textMuted },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 8 },
-  cardBody: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
+  roleBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
+  roleText: { fontSize: 12, fontWeight: '600' },
+  accessLevel: { fontSize: 12 },
+  section: { gap: 12 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  quickCard: { borderRadius: 12, borderWidth: 1, padding: 16, gap: 8, alignItems: 'flex-start' },
+  quickLabel: { fontSize: 13, fontWeight: '500' },
+  cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  cardBody: { fontSize: 14, lineHeight: 22 },
 });

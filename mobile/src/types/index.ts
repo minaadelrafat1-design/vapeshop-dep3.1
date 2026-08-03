@@ -109,3 +109,74 @@ export interface NavigationParams {
   id?: string;
   from?: string;
 }
+
+// ============================================================
+// Theme Types
+// ============================================================
+
+export type ThemeMode = 'light' | 'dark';
+
+export interface ThemeColors {
+  background: string;
+  surface: string;
+  surfaceElevated: string;
+  border: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  gold: string;
+  goldLight: string;
+  goldDark: string;
+  success: string;
+  warning: string;
+  error: string;
+  errorLight: string;
+  accent: string;
+  accentDark: string;
+  ink: string;
+  overlay: string;
+  tabInactive: string;
+}
+
+export interface Theme {
+  mode: ThemeMode;
+  colors: ThemeColors;
+}
+
+// ============================================================
+// Navigation Config Types
+// ============================================================
+
+export type IconName =
+  | 'dashboard' | 'products' | 'categories' | 'inventory' | 'warehouses'
+  | 'branches' | 'suppliers' | 'purchase-orders' | 'sales-orders' | 'pos'
+  | 'customers' | 'employees' | 'reports' | 'analytics' | 'notifications'
+  | 'tasks' | 'profile' | 'settings' | 'help' | 'more'
+  | 'logout' | 'menu' | 'back' | 'search' | 'bell' | 'sun' | 'moon'
+  | 'box' | 'tag' | 'warehouse' | 'building' | 'truck' | 'shopping-cart'
+  | 'credit-card' | 'users' | 'user' | 'bar-chart' | 'trending-up'
+  | 'clipboard' | 'gear' | 'question' | 'chevron-right' | 'chevron-down'
+  | 'plus' | 'check' | 'x' | 'alert' | 'wifi-off' | 'refresh'
+  | 'package' | 'dollar' | 'receipt' | 'store' | 'globe' | 'shield'
+  | 'clock' | 'calendar' | 'filter' | 'sort' | 'download' | 'upload'
+  | 'phone' | 'mail' | 'map-pin' | 'camera' | 'qr' | 'barcode'
+  | 'eye' | 'eye-off' | 'lock' | 'unlock' | 'edit' | 'trash'
+  | 'archive' | 'folder' | 'file' | 'image' | 'star' | 'heart'
+  | 'info' | 'external-link';
+
+export interface NavItemConfig {
+  key: string;
+  label: string;
+  icon: IconName;
+  minRank: number;
+  group: NavGroup;
+  description?: string;
+}
+
+export type NavGroup = 'overview' | 'commerce' | 'inventory' | 'operations' | 'purchasing' | 'insights' | 'administration';
+
+export interface NavGroupConfig {
+  key: NavGroup;
+  label: string;
+  icon: IconName;
+}

@@ -7,15 +7,16 @@ import {
   type ViewStyle,
   type TextStyle,
 } from 'react-native';
-import { COLORS } from '@constants';
+import { useThemeStore } from '@store/themeStore';
 
 interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'outline';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'outline' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   loading?: boolean;
+  icon?: React.ReactNode;
   style?: ViewStyle;
 }
 
@@ -26,10 +27,13 @@ export function Button({
   size = 'md',
   disabled,
   loading,
+  icon,
   style,
 }: ButtonProps) {
-  const variantStyle = styles[variant];
+  const { colors } = useThemeStore();
+  const variantStyle = variantStyles(variant, colors);
   const sizeStyle = sizes[size];
+  const textStyle = textStyles(variant, colors);
 
   return (
     <TouchableOpacity
@@ -39,9 +43,12 @@ export function Button({
       style={[styles.base, variantStyle, sizeStyle, disabled && styles.disabled, style]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? COLORS.ink[950] : COLORS.gold[300]} />
+        <ActivityIndicator color={variant === 'primary' ? colors.ink : colors.gold} />
       ) : (
-        <Text style={[textStyles.base, textStyles[variant], sizeStyle]}>{title}</Text>
+        <>
+          {icon}
+          <Text style={[textStyle, sizeStyle]}>{title}</Text>
+        </>
       )}
     </TouchableOpacity>
   );
@@ -53,6 +60,28 @@ const sizes = {
   lg: { paddingVertical: 16, paddingHorizontal: 28, borderRadius: 14 },
 } as const;
 
+function variantStyles(variant: string, c: ReturnType<typeof useThemeStore.getState>['colors']): ViewStyle {
+  switch (variant) {
+    case 'primary': return { backgroundColor: c.gold };
+    case 'secondary': return { backgroundColor: c.surfaceElevated };
+    case 'ghost': return {};
+    case 'outline': return { borderWidth: 1, borderColor: c.gold };
+    case 'danger': return { backgroundColor: c.errorLight };
+    default: return {};
+  }
+}
+
+function textStyles(variant: string, c: ReturnType<typeof useThemeStore.getState>['colors']): TextStyle {
+  switch (variant) {
+    case 'primary': return { color: c.ink, fontWeight: '600' };
+    case 'secondary': return { color: c.textPrimary, fontWeight: '600' };
+    case 'ghost': return { color: c.gold, fontWeight: '600' };
+    case 'outline': return { color: c.gold, fontWeight: '600' };
+    case 'danger': return { color: c.error, fontWeight: '600' };
+    default: return { color: c.textPrimary, fontWeight: '600' };
+  }
+}
+
 const styles = StyleSheet.create({
   base: {
     flexDirection: 'row',
@@ -60,28 +89,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   } as ViewStyle,
-  primary: {
-      backgroundColor: COLORS.gold[400],
-    } as ViewStyle,
-  secondary: {
-      backgroundColor: COLORS.surfaceElevated,
-    } as ViewStyle,
-  ghost: {} as ViewStyle,
-  outline: {
-      borderWidth: 1,
-      borderColor: COLORS.gold[500],
-    } as ViewStyle,
   disabled: {
-      opacity: 0.4,
-    } as ViewStyle,
-});
-
-const textStyles = StyleSheet.create({
-  base: {
-    fontWeight: '600',
-  } as TextStyle,
-  primary: { color: COLORS.ink[950] } as TextStyle,
-  secondary: { color: COLORS.ink[50] } as TextStyle,
-  ghost: { color: COLORS.gold[300] } as TextStyle,
-  outline: { color: COLORS.gold[300] } as TextStyle,
+    opacity: 0.4,
+  } as ViewStyle,
 });

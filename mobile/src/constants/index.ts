@@ -1,52 +1,4 @@
-import type { UserRole } from '@apptypes';
-
-// ============================================================
-// Brand Colors — mirrors the web ERP's dark gold theme
-// ============================================================
-
-export const COLORS = {
-  ink: {
-    50: '#f6f7f9',
-    100: '#eceef2',
-    200: '#d4d8e0',
-    300: '#aab2c0',
-    400: '#7c8696',
-    500: '#5a6473',
-    600: '#444c58',
-    700: '#353c46',
-    800: '#222830',
-    900: '#161b20',
-    950: '#0c0f13',
-  },
-  gold: {
-    50: '#fbf7ee',
-    100: '#f5ecd2',
-    200: '#ead7a3',
-    300: '#ddbd6b',
-    400: '#d4a649',
-    500: '#c08f2e',
-    600: '#a3721f',
-    700: '#83571b',
-    800: '#6c461b',
-    900: '#5c3c1a',
-  },
-  accent: {
-    400: '#3dc98a',
-    500: '#1cae6f',
-    600: '#108a56',
-  },
-  success: '#10b981',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  white: '#ffffff',
-  background: '#0c0f13',
-  surface: '#161b20',
-  surfaceElevated: '#222830',
-  border: '#ffffff1a',
-  textPrimary: '#f6f7f9',
-  textSecondary: '#aab2c0',
-  textMuted: '#7c8696',
-} as const;
+import type { UserRole, NavItemConfig, NavGroupConfig, IconName } from '@apptypes';
 
 // ============================================================
 // Role Labels
@@ -86,17 +38,91 @@ export const APP_CONFIG = {
 } as const;
 
 // ============================================================
-// Permission Module Groups — for navigation organization
+// Navigation Group Definitions
 // ============================================================
 
-export const NAV_GROUPS = [
-  'overview',
-  'commerce',
-  'inventory',
-  'operations',
-  'purchasing',
-  'insights',
-  'administration',
-] as const;
+export const NAV_GROUPS: NavGroupConfig[] = [
+  { key: 'overview', label: 'Overview', icon: 'dashboard' },
+  { key: 'commerce', label: 'Commerce', icon: 'shopping-cart' },
+  { key: 'inventory', label: 'Inventory', icon: 'box' },
+  { key: 'operations', label: 'Operations', icon: 'gear' },
+  { key: 'purchasing', label: 'Purchasing', icon: 'truck' },
+  { key: 'insights', label: 'Insights', icon: 'bar-chart' },
+  { key: 'administration', label: 'Administration', icon: 'shield' },
+];
 
-export type NavGroup = (typeof NAV_GROUPS)[number];
+// ============================================================
+// Navigation Item Definitions — each screen with its minRank
+// ============================================================
+
+export const NAV_ITEMS: NavItemConfig[] = [
+  // Overview
+  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', minRank: 20, group: 'overview', description: 'Business overview and KPIs' },
+  { key: 'notifications', label: 'Notifications', icon: 'bell', minRank: 20, group: 'overview', description: 'Alerts and announcements' },
+  { key: 'tasks', label: 'Tasks', icon: 'clipboard', minRank: 20, group: 'overview', description: 'Assigned and tracked tasks' },
+
+  // Commerce
+  { key: 'pos', label: 'POS', icon: 'credit-card', minRank: 20, group: 'commerce', description: 'Point of sale checkout' },
+  { key: 'sales-orders', label: 'Sales Orders', icon: 'shopping-cart', minRank: 20, group: 'commerce', description: 'Customer orders and fulfillment' },
+  { key: 'customers', label: 'Customers', icon: 'users', minRank: 40, group: 'commerce', description: 'Customer accounts and history' },
+  { key: 'products', label: 'Products', icon: 'package', minRank: 40, group: 'commerce', description: 'Product catalog management' },
+  { key: 'categories', label: 'Categories', icon: 'tag', minRank: 40, group: 'commerce', description: 'Product categories and taxonomy' },
+
+  // Inventory
+  { key: 'inventory', label: 'Inventory', icon: 'box', minRank: 40, group: 'inventory', description: 'Stock levels and adjustments' },
+  { key: 'warehouses', label: 'Warehouses', icon: 'warehouse', minRank: 60, group: 'inventory', description: 'Warehouse locations' },
+  { key: 'branches', label: 'Branches', icon: 'building', minRank: 60, group: 'inventory', description: 'Branch and store locations' },
+
+  // Operations
+  { key: 'employees', label: 'Employees', icon: 'users', minRank: 60, group: 'operations', description: 'Staff management' },
+
+  // Purchasing
+  { key: 'suppliers', label: 'Suppliers', icon: 'truck', minRank: 40, group: 'purchasing', description: 'Vendor management' },
+  { key: 'purchase-orders', label: 'Purchase Orders', icon: 'clipboard', minRank: 40, group: 'purchasing', description: 'Procurement orders' },
+
+  // Insights
+  { key: 'reports', label: 'Reports', icon: 'file', minRank: 40, group: 'insights', description: 'Business reports' },
+  { key: 'analytics', label: 'Analytics', icon: 'bar-chart', minRank: 60, group: 'insights', description: 'Advanced analytics' },
+
+  // Administration
+  { key: 'settings', label: 'Settings', icon: 'gear', minRank: 20, group: 'administration', description: 'App and account settings' },
+  { key: 'help', label: 'Help & Support', icon: 'question', minRank: 0, group: 'administration', description: 'Support and documentation' },
+];
+
+// ============================================================
+// Bottom Tab Items — varies by role
+// ============================================================
+
+export interface TabConfig {
+  key: string;
+  label: string;
+  icon: IconName;
+  minRank: number;
+}
+
+export const TAB_ITEMS: TabConfig[] = [
+  { key: 'dashboard', label: 'Home', icon: 'dashboard', minRank: 20 },
+  { key: 'pos', label: 'POS', icon: 'credit-card', minRank: 20 },
+  { key: 'inventory', label: 'Inventory', icon: 'box', minRank: 40 },
+  { key: 'more', label: 'More', icon: 'menu', minRank: 20 },
+];
+
+// ============================================================
+// Role-Specific Quick Actions
+// ============================================================
+
+export const ROLE_QUICK_ACTIONS: Partial<Record<UserRole, string[]>> = {
+  super_admin: ['dashboard', 'analytics', 'reports', 'employees', 'settings'],
+  admin: ['dashboard', 'reports', 'employees', 'inventory', 'settings'],
+  manager: ['dashboard', 'sales-orders', 'inventory', 'reports', 'tasks'],
+  warehouse_manager: ['inventory', 'warehouses', 'purchase-orders', 'tasks'],
+  branch_manager: ['pos', 'sales-orders', 'inventory', 'branches'],
+  inventory_employee: ['inventory', 'warehouses', 'tasks'],
+  sales_employee: ['pos', 'sales-orders', 'customers'],
+  general_manager: ['dashboard', 'reports', 'analytics', 'employees'],
+  accountant: ['reports', 'analytics', 'purchase-orders'],
+  marketing: ['products', 'categories', 'customers', 'analytics'],
+  customer_support: ['customers', 'sales-orders', 'notifications', 'tasks'],
+  staff: ['dashboard', 'notifications', 'tasks'],
+  customer: ['dashboard', 'notifications', 'help'],
+};
